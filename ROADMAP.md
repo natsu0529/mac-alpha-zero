@@ -23,6 +23,7 @@ The claim we want to be able to make, with numbers: **"Train a strong game-playi
 
 - One PUCT select + backup step over 1,024 trees (128 nodes, 64 actions): about **1.4 ms eager, 0.94 ms with `mx.compile`**. The arithmetic is tiny, so most of this is per-op dispatch overhead.
 - `uint64` shifts and bitwise ops run on the GPU and give correct results, so bitboards are viable. One early run produced a value we could not explain, so bitboard ops get their own tests in M0.
+- First batched PUCT search (pure MLX, Python depth loops, Connect4, trivial evaluator, 64 simulations): about **2 ms per simulation step regardless of batch size** (1.8 ms at batch 1, 2.0 ms at batch 1,024), i.e. about 520k simulations/s at batch 1,024. Time is dominated by dispatch and per-level syncs, not arithmetic. This is the baseline the fused kernel has to beat.
 - MLX has no `while_loop` / `scan` inside compiled graphs. Tree descent has a data-dependent depth, so a pure-MLX descent becomes a Python loop that pays dispatch overhead per level. This is the main motivation for a fused Metal kernel.
 
 ## Milestones

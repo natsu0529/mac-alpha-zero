@@ -18,7 +18,9 @@ CI (GitHub Actions, macos-latest) runs lint, format check, and tests. Hosted run
 - `src/mac_alpha_zero/reference/` — slow, single-game NumPy implementations: the correctness oracle. Clarity over speed. Do not optimize these.
   - `game.py` — the `Game` protocol. Values are always for the player to move.
   - `connect4.py`, `mcts.py` (PUCT), `solver.py` (depth-limited negamax).
-- Batched MLX implementations and Metal kernels will live alongside and must be tested against `reference/`.
+- `src/mac_alpha_zero/games/` — batched MLX environments (`BatchedGame` protocol in `base.py`). States are dicts of arrays with a leading batch dimension.
+- `src/mac_alpha_zero/mcts.py` — batched PUCT search. With `dtype=mx.float64` on the CPU it matches `reference.run_mcts` bit for bit; keep it that way (same operation order, first-index argmax tie-break).
+- Metal kernels will live alongside and must be tested against the pure-MLX search.
 
 ## Design rules
 
