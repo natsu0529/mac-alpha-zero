@@ -4,6 +4,7 @@ The evaluator is trivial (uniform priors, zero value) so the numbers measure tre
 operations and game logic, not a network.
 
     uv run python benchmarks/search_speed.py --backend mlx
+    uv run python benchmarks/search_speed.py --backend metal
     uv run --group bench python benchmarks/search_speed.py --backend mctx
 
 The mctx baseline (JAX on the CPU, pgx Connect4) uses mctx's own PUCT formula and value
@@ -85,8 +86,13 @@ def mctx_runner(batch: int, sims: int):
     return run
 
 
+def metal_runner(batch: int, sims: int):
+    return mlx_runner(batch, sims, use_kernels=True)
+
+
 BACKENDS = {
     "mlx": mlx_runner,
+    "metal": metal_runner,
     "mctx": mctx_runner,
 }
 

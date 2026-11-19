@@ -10,6 +10,7 @@ from typing import NamedTuple
 
 import mlx.core as mx
 
+from mac_alpha_zero import kernels
 from mac_alpha_zero.games.base import BatchedGame, State
 
 # Maps a batch of states to (priors (B, A), values (B,) for the player to move).
@@ -58,12 +59,18 @@ def search(
     num_simulations: int,
     c_puct: float = 1.25,
     dtype: mx.Dtype = mx.float32,
+    use_kernels: bool = False,
 ) -> SearchResult:
     """Run PUCT search on a batch of root states, one tree per state.
 
     `dtype` is the precision of the tree statistics. float64 only works on the CPU and is
     used to compare against the reference bit for bit.
+
+    `use_kernels` runs tree descent and backup as fused Metal kernels. It needs the GPU
+    and float32.
     """
+    if use_kernels and (dtype != mx.float32 or not kernels.is_available()):
+        raise ValueError("use_kernels needs float32 and the Metal GPU device")
     done, _ = game.terminal(root)
     if mx.any(done).item():
         raise ValueError("cannot search from a terminal state")
@@ -75,10 +82,17 @@ def search(
         if sim == 0:
             leaf = mx.zeros((batch,), dtype=mx.int32)
         else:
-            leaf = _descend_and_add_node(game, tree, rows, sim, c_puct)
+            walk = _descend_kernel if use_kernels else _descend
+            node, new_parent, new_action = walk(tree, rows, sim, c_puct)
+            leaf = _add_node(game, tree, rows, sim, node, new_parent, new_action)
         leaf_state = {k: v[rows, leaf] for k, v in tree.states.items()}
         value = _evaluate_and_expand(game, tree, rows, leaf, leaf_state, evaluator, dtype)
-        _backup(tree, rows, leaf, value)
+        if use_kernels:
+            tree.visits, tree.value_sum = kernels.backup(
+                tree.parent, tree.visits, tree.value_sum, leaf, value
+            )
+        else:
+            _backup(tree, rows, leaf, value)
         mx.eval(*tree.arrays())
 
     children = tree.children[:, 0]
@@ -103,12 +117,13 @@ def _select(tree: _Tree, rows: mx.array, node: mx.array, c_puct: float) -> mx.ar
     return mx.argmax(score, axis=-1).astype(mx.int32)
 
 
-def _descend_and_add_node(
-    game: BatchedGame, tree: _Tree, rows: mx.array, sim: int, c_puct: float
-) -> mx.array:
-    """Walk down every tree; create node `sim` where the walk leaves the tree.
+def _descend(
+    tree: _Tree, rows: mx.array, sim: int, c_puct: float
+) -> tuple[mx.array, mx.array, mx.array]:
+    """Walk down every tree until the walk leaves it or reaches a terminal node.
 
-    Returns the leaf per tree: the new node, or a terminal node reached again.
+    Returns (node, new_parent, new_action). Trees that need a new node have
+    new_parent >= 0; the others stopped at the terminal node `node`.
     """
     batch = rows.shape[0]
     node = mx.zeros((batch,), dtype=mx.int32)
@@ -127,7 +142,34 @@ def _descend_and_add_node(
         active = descend & tree.expanded[rows, node]
         if not mx.any(active).item():
             break
+    return node, new_parent, new_action
 
+
+def _descend_kernel(
+    tree: _Tree, rows: mx.array, sim: int, c_puct: float
+) -> tuple[mx.array, mx.array, mx.array]:
+    return kernels.descend(
+        tree.children,
+        tree.legal,
+        tree.prior,
+        tree.expanded,
+        tree.visits,
+        tree.value_sum,
+        sim,
+        c_puct,
+    )
+
+
+def _add_node(
+    game: BatchedGame,
+    tree: _Tree,
+    rows: mx.array,
+    sim: int,
+    node: mx.array,
+    new_parent: mx.array,
+    new_action: mx.array,
+) -> mx.array:
+    """Create node `sim` in the trees that left the tree. Returns the leaf per tree."""
     created = new_parent >= 0
     parent = mx.maximum(new_parent, 0)
     parent_state = {k: v[rows, parent] for k, v in tree.states.items()}

@@ -32,12 +32,12 @@ def batched_evaluator(state):
     return priors, value
 
 
-def random_positions(count, seed):
+def random_positions(count, seed, min_moves=0):
     rng = np.random.default_rng(seed)
     positions = []
     while len(positions) < count:
         state = ref.initial_state()
-        for _ in range(rng.integers(0, 20)):
+        for _ in range(rng.integers(min_moves, max(min_moves, 20) + 1)):
             if ref.terminal_value(state) is not None:
                 break
             state = ref.step(state, int(rng.choice(np.flatnonzero(ref.legal_mask(state)))))

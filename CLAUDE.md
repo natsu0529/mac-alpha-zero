@@ -9,7 +9,7 @@ uv sync                    # install (Python >= 3.10, managed by uv)
 uv run pytest              # tests
 uv run ruff check .        # lint
 uv run ruff format .       # format
-uv run python benchmarks/search_speed.py --backend mlx                # search speed
+uv run python benchmarks/search_speed.py --backend metal              # search speed (or mlx)
 uv run --group bench python benchmarks/search_speed.py --backend mctx # JAX/CPU baseline
 ```
 
@@ -22,7 +22,7 @@ CI (GitHub Actions, macos-latest) runs lint, format check, and tests. Hosted run
   - `connect4.py`, `mcts.py` (PUCT), `solver.py` (depth-limited negamax).
 - `src/mac_alpha_zero/games/` — batched MLX environments (`BatchedGame` protocol in `base.py`). States are dicts of arrays with a leading batch dimension.
 - `src/mac_alpha_zero/mcts.py` — batched PUCT search. With `dtype=mx.float64` on the CPU it matches `reference.run_mcts` bit for bit; keep it that way (same operation order, first-index argmax tie-break).
-- Metal kernels will live alongside and must be tested against the pure-MLX search.
+- `src/mac_alpha_zero/kernels.py` — fused Metal kernels (tree descent, backup), one GPU thread per tree. `search(..., use_kernels=True)` must give the same visit counts as the pure-MLX path; tests skip when Metal is unavailable.
 
 ## Design rules
 
