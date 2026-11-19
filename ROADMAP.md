@@ -37,6 +37,16 @@ The claim we want to be able to make, with numbers: **"Train a strong game-playi
   - Against mctx on the CPU we lose badly at small batches (a fixed ~0.35 ms of MLX dispatch per simulation step) and win from batch 1,024 up (1.9× at 1,024, 4.1× at 4,096, 5.7× at 16,384).
   - This is without a network. With one, mctx on a Mac has to run inference on the CPU; that comparison is still to be measured.
   - What limits us now: per-step MLX op dispatch at small batches, and whole-array copies when writing node states and statistics at large batches.
+- First end-to-end training run (2026-11-19, `examples/train_connect4.py --minutes 10`, defaults: 256 parallel games, 32 Gumbel simulations, 4 blocks × 64 channels, Metal kernels on). Score is the mean result over 128 games (win 1, draw 0.5), half with each side moving first:
+
+  | Training minutes | Self-play games | Policy only vs random | Search vs random | Policy only vs rollout MCTS (100 sims) | Search vs rollout MCTS (100 sims) |
+  |---:|---:|---:|---:|---:|---:|
+  | 0 | 0 | 0.80 | 0.90 | 0.02 | 0.16 |
+  | 3.0 | 6,321 | 1.00 | 1.00 | 0.60 | 0.80 |
+  | 7.7 | 11,325 | 1.00 | 0.99 | 0.75 | 0.89 |
+  | 10.2 | 12,476 | 1.00 | 1.00 | 0.70 | 0.90 |
+
+  One run, one seed, weak opponents: this shows the loop learns, not how strong it gets. About 20 self-play games per second.
 - MLX has no `while_loop` / `scan` inside compiled graphs. Tree descent has a data-dependent depth, so a pure-MLX descent becomes a Python loop that pays dispatch overhead per level. This is the main motivation for a fused Metal kernel.
 
 ## Milestones
@@ -51,7 +61,7 @@ Each milestone ends with a go/no-go check and something written up. Weeks are ta
 - Profile, then write a fused Metal kernel for tree descent + backup (one thread per tree).
 - Benchmark: simulations/sec vs mctx on CPU and vs our own pure-MLX Python-loop version.
 
-Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT below the root), fused descent/backup kernels, and the benchmark are done. Still open: checking search results against the Connect4 solver on a fixed position set at scale, and the Gumbel paper's non-root selection rule.
+Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT below the root), fused descent/backup kernels, and the benchmark are done. The network, self-play, replay buffer, training step, and arena planned for M1 are also in place and train Connect4 end to end. Still open: checking search results against the Connect4 solver on a fixed position set at scale, and the Gumbel paper's non-root selection rule.
 
 **Go/no-go:** the fused kernel gives a clear, reproducible speedup over both baselines. If it doesn't, rethink the architecture before building training on top.
 
