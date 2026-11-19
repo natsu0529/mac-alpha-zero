@@ -11,6 +11,8 @@ uv run ruff check .        # lint
 uv run ruff format .       # format
 uv run python benchmarks/search_speed.py --backend metal              # search speed (or mlx)
 uv run --group bench python benchmarks/search_speed.py --backend mctx # JAX/CPU baseline
+uv run python benchmarks/search_speed.py --backend metal --network 64x4 # search speed with a ResNet
+uv run python benchmarks/solver_agreement.py --checkpoint checkpoints/connect4.safetensors # optimal-move rate
 uv run python examples/train_connect4.py --minutes 10                 # train Connect4 end to end
 ```
 
@@ -41,4 +43,5 @@ CI (GitHub Actions, macos-latest) runs lint, format check, and tests. Hosted run
 - The reference MCTS is deterministic for a deterministic evaluator (ties go to the lowest action index). Keep it that way.
 - Random-rollout MCTS can miss some tactics even with many simulations. Tactical tests use positions whose winning moves were precomputed with `solve` at a deeper depth.
 - MLX 0.32.4 evaluates `mx.exp` at float32 precision even for float64 inputs. Anything that goes through exp or softmax can only be compared to the reference with a tolerance (~1e-6).
+- `games/connect4_solver.py` (exact bitboard solver) is only fast for positions with roughly 16+ stones; with fewer it can run for minutes or hours. Never call it on early positions in tests.
 - Solver calls deeper than ~5 plies take seconds in Python. Precompute and hard-code their results in tests.

@@ -47,6 +47,32 @@ The claim we want to be able to make, with numbers: **"Train a strong game-playi
   | 10.2 | 12,476 | 1.00 | 1.00 | 0.70 | 0.90 |
 
   One run, one seed, weak opponents: this shows the loop learns, not how strong it gets. About 20 self-play games per second.
+- Search speed with a network (2026-11-20, Connect4, random 64-channel 4-block ResNet at every leaf, 64 simulations, best of 3, `benchmarks/search_speed.py --network 64x4`), in simulations per second:
+
+  | Batch | Pure MLX | MLX + Metal kernels | mctx (JAX, CPU) | Kernels vs mctx |
+  |---:|---:|---:|---:|---:|
+  | 1 | — | 1,167 | 6,353 | 0.18× |
+  | 64 | 8,710 | 51,781 | 17,999 | 2.9× |
+  | 256 | 28,307 | 70,485 | 18,899 | 3.7× |
+  | 1,024 | 34,885 | 62,789 | 13,621 | 4.6× |
+  | 4,096 | — | 50,367 | 9,899 | 5.1× |
+
+  - With a network we beat mctx on the CPU from batch 64 up, by 3–5×. Only batch 1 is slower.
+  - Network inference is now nearly the whole cost: the network alone runs about 31k–49k positions/s on the M5 GPU, peaking near batch 1,024 and dropping at 4,096. Search throughput peaks around batch 256.
+  - So the next speedups have to come from inference (smaller or compiled network, half precision, batch size), not from more tree kernels.
+  - Not measured: JAX on the Mac GPU (jax-metal), and a trained rather than random network.
+- Agreement with the exact solver (2026-11-20, `benchmarks/solver_agreement.py`, 1,000 solved positions from random play with 14–30 stones; "quiet" = the 398 positions without an immediate win). Share of moves that keep the best achievable result:
+
+  | Agent | All positions | Quiet only |
+  |---|---:|---:|
+  | Random | 0.326 | 0.319 |
+  | Rollout MCTS, 100 sims | 0.895 | 0.736 |
+  | Rollout MCTS, 400 sims | 0.943 | 0.857 |
+  | Network (10-minute run), policy only | 0.741 | 0.671 |
+  | Network + Gumbel search, 32 sims | 0.878 | 0.739 |
+  | Network + Gumbel search, 128 sims | 0.920 | 0.817 |
+
+  After 10 minutes the network with search is about level with 100-simulation rollout MCTS on these positions and below 400. The positions come from random play, which self-play rarely visits, so this understates in-distribution strength; it is still the honest absolute number we have.
 - MLX has no `while_loop` / `scan` inside compiled graphs. Tree descent has a data-dependent depth, so a pure-MLX descent becomes a Python loop that pays dispatch overhead per level. This is the main motivation for a fused Metal kernel.
 
 ## Milestones
@@ -61,11 +87,11 @@ Each milestone ends with a go/no-go check and something written up. Weeks are ta
 - Profile, then write a fused Metal kernel for tree descent + backup (one thread per tree).
 - Benchmark: simulations/sec vs mctx on CPU and vs our own pure-MLX Python-loop version.
 
-Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT below the root), fused descent/backup kernels, and the benchmark are done. The network, self-play, replay buffer, training step, and arena planned for M1 are also in place and train Connect4 end to end. Still open: checking search results against the Connect4 solver on a fixed position set at scale, and the Gumbel paper's non-root selection rule.
+Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT below the root), fused descent/backup kernels, and the benchmark are done. The network, self-play, replay buffer, training step, and arena planned for M1 are also in place and train Connect4 end to end. The solver check is done (`benchmarks/solver_agreement.py`). Still open: the Gumbel paper's non-root selection rule.
 
 **Go/no-go:** the fused kernel gives a clear, reproducible speedup over both baselines. If it doesn't, rethink the architecture before building training on top.
 
-**Result so far:** mixed. Clear win over pure MLX (2–4×) and over mctx on the CPU from batch 1,024 up, but far behind mctx at small batches. The comparison that decides it is search with a network, which needs M1's network code.
+**Result so far:** mixed. Clear win over pure MLX (2–4×) and over mctx on the CPU from batch 1,024 up, but far behind mctx at small batches. With a network (the case that matters for training) we are 3–5× faster than mctx on the CPU from batch 64 up, so the decision is **go**. Tree search without a network at small batches remains much slower than mctx.
 
 ### M1 — Othello from scratch (weeks 3–6) → v0.1 release
 
