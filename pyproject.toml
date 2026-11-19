@@ -12,6 +12,11 @@ dependencies = [
 ]
 
 [dependency-groups]
+bench = [
+    "jax>=0.6.2",
+    "mctx>=0.0.5",
+    "pgx>=2.6.0",
+]
 dev = [
     "pytest>=8",
     "ruff>=0.6",

@@ -9,6 +9,8 @@ uv sync                    # install (Python >= 3.10, managed by uv)
 uv run pytest              # tests
 uv run ruff check .        # lint
 uv run ruff format .       # format
+uv run python benchmarks/search_speed.py --backend mlx                # search speed
+uv run --group bench python benchmarks/search_speed.py --backend mctx # JAX/CPU baseline
 ```
 
 CI (GitHub Actions, macos-latest) runs lint, format check, and tests. Hosted runners may not expose the Metal GPU, so tests must pass on the MLX CPU device. Speed is measured locally on the M5, never in CI.
