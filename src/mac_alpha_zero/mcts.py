@@ -69,37 +69,68 @@ def search(
     `use_kernels` runs tree descent and backup as fused Metal kernels. It needs the GPU
     and float32.
     """
+    tree, rows = _new_tree(game, root, num_simulations, dtype, use_kernels)
+    for sim in range(num_simulations):
+        _simulate(game, tree, rows, sim, evaluator, c_puct, dtype, use_kernels)
+    visit_counts, _ = _root_child_stats(tree, rows)
+    root_value = -tree.value_sum[:, 0] / tree.visits[:, 0]
+    return SearchResult(visit_counts=visit_counts.astype(mx.int32), root_value=root_value)
+
+
+def _new_tree(
+    game: BatchedGame, root: State, num_nodes: int, dtype: mx.Dtype, use_kernels: bool
+) -> tuple[_Tree, mx.array]:
     if use_kernels and (dtype != mx.float32 or not kernels.is_available()):
         raise ValueError("use_kernels needs float32 and the Metal GPU device")
     done, _ = game.terminal(root)
     if mx.any(done).item():
         raise ValueError("cannot search from a terminal state")
     batch = next(iter(root.values())).shape[0]
-    tree = _Tree(root, batch, num_simulations, game.num_actions, dtype)
-    rows = mx.arange(batch)
+    return _Tree(root, batch, num_nodes, game.num_actions, dtype), mx.arange(batch)
 
-    for sim in range(num_simulations):
-        if sim == 0:
-            leaf = mx.zeros((batch,), dtype=mx.int32)
-        else:
-            walk = _descend_kernel if use_kernels else _descend
-            node, new_parent, new_action = walk(tree, rows, sim, c_puct)
-            leaf = _add_node(game, tree, rows, sim, node, new_parent, new_action)
-        leaf_state = {k: v[rows, leaf] for k, v in tree.states.items()}
-        value = _evaluate_and_expand(game, tree, rows, leaf, leaf_state, evaluator, dtype)
-        if use_kernels:
-            tree.visits, tree.value_sum = kernels.backup(
-                tree.parent, tree.visits, tree.value_sum, leaf, value
-            )
-        else:
-            _backup(tree, rows, leaf, value)
-        mx.eval(*tree.arrays())
 
+def _simulate(
+    game: BatchedGame,
+    tree: _Tree,
+    rows: mx.array,
+    sim: int,
+    evaluator: Evaluator,
+    c_puct: float,
+    dtype: mx.Dtype,
+    use_kernels: bool,
+    root_action: mx.array | None = None,
+) -> mx.array:
+    """Run simulation `sim` in every tree. Simulation 0 expands the root.
+
+    `root_action` (B,) int32 overrides PUCT selection at the root. Returns the value the
+    leaf was evaluated to, for the player to move at the leaf.
+    """
+    if sim == 0:
+        leaf = mx.zeros((rows.shape[0],), dtype=mx.int32)
+    else:
+        walk = _descend_kernel if use_kernels else _descend
+        node, new_parent, new_action = walk(tree, rows, sim, c_puct, root_action)
+        leaf = _add_node(game, tree, rows, sim, node, new_parent, new_action)
+    leaf_state = {k: v[rows, leaf] for k, v in tree.states.items()}
+    value = _evaluate_and_expand(game, tree, rows, leaf, leaf_state, evaluator, dtype)
+    if use_kernels:
+        tree.visits, tree.value_sum = kernels.backup(
+            tree.parent, tree.visits, tree.value_sum, leaf, value
+        )
+    else:
+        _backup(tree, rows, leaf, value)
+    mx.eval(*tree.arrays(), value)
+    return value
+
+
+def _root_child_stats(tree: _Tree, rows: mx.array) -> tuple[mx.array, mx.array]:
+    """(visits, q) of the root's children, both (B, A). Unvisited children have q = 0."""
     children = tree.children[:, 0]
-    child_visits = tree.visits[rows[:, None], mx.maximum(children, 0)]
-    visit_counts = mx.where(children >= 0, child_visits, 0).astype(mx.int32)
-    root_value = -tree.value_sum[:, 0] / tree.visits[:, 0]
-    return SearchResult(visit_counts=visit_counts, root_value=root_value)
+    exists = children >= 0
+    index = mx.maximum(children, 0)
+    visits = mx.where(exists, tree.visits[rows[:, None], index], 0)
+    value_sum = mx.where(exists, tree.value_sum[rows[:, None], index], 0)
+    return visits, mx.where(visits > 0, value_sum / mx.maximum(visits, 1), 0)
 
 
 def _select(tree: _Tree, rows: mx.array, node: mx.array, c_puct: float) -> mx.array:
@@ -118,7 +149,7 @@ def _select(tree: _Tree, rows: mx.array, node: mx.array, c_puct: float) -> mx.ar
 
 
 def _descend(
-    tree: _Tree, rows: mx.array, sim: int, c_puct: float
+    tree: _Tree, rows: mx.array, sim: int, c_puct: float, root_action: mx.array | None = None
 ) -> tuple[mx.array, mx.array, mx.array]:
     """Walk down every tree until the walk leaves it or reaches a terminal node.
 
@@ -131,8 +162,12 @@ def _descend(
     new_parent = mx.full((batch,), -1, dtype=mx.int32)
     new_action = mx.zeros((batch,), dtype=mx.int32)
     # MLX has no while_loop inside graphs, so the depth loop lives in Python.
+    at_root = True
     while True:
         action = _select(tree, rows, node, c_puct)
+        if at_root and root_action is not None:
+            action = mx.where(root_action >= 0, root_action, action)
+        at_root = False
         child = tree.children[rows, node, action]
         leaves = active & (child < 0)
         new_parent = mx.where(leaves, node, new_parent)
@@ -146,7 +181,7 @@ def _descend(
 
 
 def _descend_kernel(
-    tree: _Tree, rows: mx.array, sim: int, c_puct: float
+    tree: _Tree, rows: mx.array, sim: int, c_puct: float, root_action: mx.array | None = None
 ) -> tuple[mx.array, mx.array, mx.array]:
     return kernels.descend(
         tree.children,
@@ -157,6 +192,7 @@ def _descend_kernel(
         tree.value_sum,
         sim,
         c_puct,
+        root_action,
     )
 
 

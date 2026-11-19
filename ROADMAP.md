@@ -51,7 +51,11 @@ Each milestone ends with a go/no-go check and something written up. Weeks are ta
 - Profile, then write a fused Metal kernel for tree descent + backup (one thread per tree).
 - Benchmark: simulations/sec vs mctx on CPU and vs our own pure-MLX Python-loop version.
 
+Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT below the root), fused descent/backup kernels, and the benchmark are done. Still open: checking search results against the Connect4 solver on a fixed position set at scale, and the Gumbel paper's non-root selection rule.
+
 **Go/no-go:** the fused kernel gives a clear, reproducible speedup over both baselines. If it doesn't, rethink the architecture before building training on top.
+
+**Result so far:** mixed. Clear win over pure MLX (2–4×) and over mctx on the CPU from batch 1,024 up, but far behind mctx at small batches. The comparison that decides it is search with a network, which needs M1's network code.
 
 ### M1 — Othello from scratch (weeks 3–6) → v0.1 release
 

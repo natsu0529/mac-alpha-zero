@@ -50,31 +50,47 @@ def run_mcts(
     if game.terminal_value(state) is not None:
         raise ValueError("cannot search from a terminal state")
     root = _Node(prior=1.0, state=state)
-
     for _ in range(num_simulations):
-        node = root
-        path = [node]
-        while node.children:
+        _simulate(game, root, evaluator, c_puct)
+    return MCTSResult(visit_counts=_root_visits(game, root), root_value=-root.q)
+
+
+def _simulate(
+    game: Game,
+    root: _Node,
+    evaluator: Evaluator,
+    c_puct: float,
+    root_action: int | None = None,
+) -> None:
+    """One simulation. `root_action` overrides PUCT selection at the root."""
+    node = root
+    path = [node]
+    while node.children:
+        if node is root and root_action is not None:
+            action, child = root_action, node.children[root_action]
+        else:
             action, child = _select(node, c_puct)
-            if child.state is None:
-                child.state = game.step(node.state, action)
-            node = child
-            path.append(node)
+        if child.state is None:
+            child.state = game.step(node.state, action)
+        node = child
+        path.append(node)
 
-        value = game.terminal_value(node.state)
-        if value is None:
-            priors, value = evaluator(node.state)
-            _expand(node, priors, game.legal_mask(node.state))
+    value = game.terminal_value(node.state)
+    if value is None:
+        priors, value = evaluator(node.state)
+        _expand(node, priors, game.legal_mask(node.state))
 
-        for n in reversed(path):
-            n.value_sum -= value
-            n.visit_count += 1
-            value = -value
+    for n in reversed(path):
+        n.value_sum -= value
+        n.visit_count += 1
+        value = -value
 
+
+def _root_visits(game: Game, root: _Node) -> np.ndarray:
     visits = np.zeros(game.num_actions, dtype=np.int64)
     for action, child in root.children.items():
         visits[action] = child.visit_count
-    return MCTSResult(visit_counts=visits, root_value=-root.q)
+    return visits
 
 
 def _select(node: _Node, c_puct: float) -> tuple[int, _Node]:

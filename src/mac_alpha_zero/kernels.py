@@ -21,8 +21,10 @@ _DESCEND_SOURCE = """
         float sqrt_n = metal::sqrt(visits[row + node]);
         float best = -INFINITY;
         int best_action = 0;
+        int forced = node == 0 ? root_action[b] : -1;
+        if (forced >= 0) best_action = forced;
         // Strict '>' keeps the lowest action index on ties, like argmax.
-        for (int a = 0; a < num_actions; a++) {
+        for (int a = 0; a < num_actions && forced < 0; a++) {
             if (!legal[base + a]) continue;
             int child = children[base + a];
             float n = 0.0f;
@@ -85,8 +87,11 @@ def descend(
     value_sum: mx.array,
     sim: int,
     c_puct: float,
+    root_action: mx.array | None = None,
 ) -> tuple[mx.array, mx.array, mx.array]:
     """PUCT walk from every root to where it leaves the tree.
+
+    `root_action` (B,) int32 overrides selection at the root where it is >= 0.
 
     Returns (leaf, new_parent, new_action), each (B,) int32. Trees that need a new node
     have leaf == sim and new_parent >= 0. Trees that reached a terminal node again have
@@ -105,11 +110,14 @@ def descend(
                 "value_sum",
                 "sim",
                 "c_puct",
+                "root_action",
             ],
             output_names=["leaf", "new_parent", "new_action"],
             source=_DESCEND_SOURCE,
         )
     batch = visits.shape[0]
+    if root_action is None:
+        root_action = mx.full((batch,), -1, dtype=mx.int32)
     return _descend(
         inputs=[
             children,
@@ -120,6 +128,7 @@ def descend(
             value_sum,
             mx.array([sim], dtype=mx.int32),
             mx.array([c_puct], dtype=mx.float32),
+            root_action,
         ],
         grid=(batch, 1, 1),
         threadgroup=(min(batch, 256), 1, 1),
