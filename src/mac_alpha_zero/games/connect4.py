@@ -16,6 +16,7 @@ class Connect4:
     """
 
     num_actions = COLS
+    observation_shape = (ROWS, COLS, 2)
 
     def init(self, batch_size: int) -> State:
         return {
@@ -23,6 +24,11 @@ class Connect4:
             "player": mx.ones((batch_size,), dtype=mx.int8),
             "winner": mx.zeros((batch_size,), dtype=mx.int8),
         }
+
+    def observe(self, state: State) -> mx.array:
+        """Planes: the player to move's stones, then the opponent's."""
+        relative = state["board"] * state["player"][:, None, None]
+        return mx.stack([relative == 1, relative == -1], axis=-1).astype(mx.float32)
 
     def legal_mask(self, state: State) -> mx.array:
         """(B, COLS) bool. Empty for finished games."""

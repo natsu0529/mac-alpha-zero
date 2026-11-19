@@ -14,6 +14,16 @@ class BatchedGame(Protocol):
     """
 
     num_actions: int
+    # (height, width, planes) of one observation.
+    observation_shape: tuple[int, int, int]
+
+    def init(self, batch_size: int) -> State:
+        """`batch_size` games at the starting position."""
+        ...
+
+    def observe(self, state: State) -> mx.array:
+        """(B, *observation_shape) float32 network input, from the player to move's view."""
+        ...
 
     def legal_mask(self, state: State) -> mx.array:
         """(B, num_actions) bool."""
