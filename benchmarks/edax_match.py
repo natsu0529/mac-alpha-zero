@@ -18,18 +18,6 @@ from mac_alpha_zero.edax import DEFAULT_PATH, edax_agent
 from mac_alpha_zero.network import AlphaZeroNet, network_evaluator
 
 
-def random_openings(game, count: int, plies: int, seed: int):
-    """`count` positions after `plies` uniformly random moves each."""
-    agent = arena.random_agent(game, seed)
-    state = game.init(count)
-    for _ in range(plies):
-        state = game.step(state, agent(state))
-    mx.eval(*state.values())
-    if mx.any(game.terminal(state)[0]).item():
-        raise ValueError("an opening ended the game; use fewer opening plies")
-    return state
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--checkpoint", help="network weights from examples/train_othello.py")
@@ -44,7 +32,7 @@ def main():
     args = parser.parse_args()
 
     game = games.Othello()
-    start = random_openings(game, args.games // 2, args.opening_plies, args.seed)
+    start = arena.random_openings(game, args.games // 2, args.opening_plies, args.seed)
 
     agents = {"random": arena.random_agent(game, seed=args.seed + 1)}
     if args.checkpoint:

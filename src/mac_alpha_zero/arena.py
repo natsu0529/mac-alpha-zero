@@ -88,6 +88,18 @@ def random_agent(game: BatchedGame, seed: int = 0) -> Agent:
     return act
 
 
+def random_openings(game: BatchedGame, count: int, plies: int, seed: int = 0) -> State:
+    """`count` positions after `plies` uniformly random moves each, to start matches from."""
+    agent = random_agent(game, seed)
+    state = game.init(count)
+    for _ in range(plies):
+        state = game.step(state, agent(state))
+    mx.eval(*state.values())
+    if mx.any(game.terminal(state)[0]).item():
+        raise ValueError("an opening ended the game; use fewer opening plies")
+    return state
+
+
 def puct_agent(game: BatchedGame, evaluator: Evaluator, num_simulations: int) -> Agent:
     """Plays the most visited action of a PUCT search."""
 

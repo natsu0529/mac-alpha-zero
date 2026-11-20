@@ -15,6 +15,7 @@ uv run python benchmarks/search_speed.py --backend metal --network 64x4 # search
 uv run python benchmarks/solver_agreement.py --checkpoint checkpoints/connect4.safetensors # optimal-move rate
 uv run python examples/train_connect4.py --minutes 10                 # train Connect4 end to end
 uv run python examples/train_othello.py --minutes 10                  # train Othello end to end
+uv run python examples/train_othello.py --minutes 60 --resume         # continue that run
 scripts/build_edax.sh                                                 # build Edax into third_party/ (once)
 uv run python benchmarks/edax_match.py --checkpoint checkpoints/othello.safetensors # score vs Edax levels
 ```
@@ -30,7 +31,7 @@ CI (GitHub Actions, macos-latest) runs lint, format check, and tests. Hosted run
 - `src/mac_alpha_zero/mcts.py` — batched PUCT search. With `dtype=mx.float64` on the CPU it matches `reference.run_mcts` bit for bit; keep it that way (same operation order, first-index argmax tie-break).
 - `src/mac_alpha_zero/kernels.py` — fused Metal kernels (tree descent, backup), one GPU thread per tree. `search(..., use_kernels=True)` must give the same visit counts as the pure-MLX path; tests skip when Metal is unavailable.
 - `src/mac_alpha_zero/gumbel.py` — batched Gumbel root selection with Sequential Halving (`reference/gumbel.py` is its oracle; `sequential_halving.py` is the shared schedule). Nodes below the root still use PUCT; the paper's non-root selection rule is not implemented.
-- `network.py` (ResNet + `network_evaluator`), `selfplay.py` (parallel games with auto-restart), `replay.py`, `train.py` (loss and one gradient step), `arena.py` (batched matches between agents). `runner.py` is the training loop that ties them together; `examples/train_connect4.py` and `examples/train_othello.py` call it with per-game defaults; checkpoints go to `checkpoints/` (git-ignored).
+- `network.py` (ResNet + `network_evaluator`), `selfplay.py` (parallel games with auto-restart), `replay.py`, `train.py` (loss and one gradient step), `arena.py` (batched matches between agents). `runner.py` is the training loop that ties them together: it evaluates against a dict of opponents every `--eval-every` iterations, appends the scores to `<checkpoint>.log.jsonl`, saves weights + optimizer + replay buffer + counters next to the checkpoint, and continues from them with `--resume`; `examples/train_connect4.py` and `examples/train_othello.py` call it with per-game defaults; checkpoints go to `checkpoints/` (git-ignored).
 - `edax.py` — Othello agent that runs Edax as a subprocess (`edax -solve` on all positions of a batch, no book). Edax is GPL-3.0: never copy its code or commit its binary; it lives in git-ignored `third_party/` and its tests skip when it is missing (as in CI).
 
 ## Design rules

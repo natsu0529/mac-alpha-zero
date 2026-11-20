@@ -37,3 +37,32 @@ class ReplayBuffer:
             mx.array(self._policy[index]),
             mx.array(self._z[index]),
         )
+
+    def save(self, path: str) -> None:
+        """Write the stored samples to an .npz file."""
+        filled = slice(0, self.size)
+        if self._obs is None:
+            np.savez(path, next=self._next, z=self._z[filled])
+        else:
+            np.savez(
+                path,
+                next=self._next,
+                obs=self._obs[filled],
+                policy=self._policy[filled],
+                z=self._z[filled],
+            )
+
+    def load(self, path: str) -> None:
+        """Replace the contents with a file written by `save` for the same capacity."""
+        data = np.load(path)
+        size = len(data["z"])
+        if size > self.capacity:
+            raise ValueError(f"{path} holds {size} samples, more than capacity {self.capacity}")
+        self.size = size
+        self._next = int(data["next"]) % self.capacity
+        self._z[:size] = data["z"]
+        if "obs" in data:
+            self._obs = np.zeros((self.capacity, *data["obs"].shape[1:]), dtype=np.float32)
+            self._policy = np.zeros((self.capacity, data["policy"].shape[1]), dtype=np.float32)
+            self._obs[:size] = data["obs"]
+            self._policy[:size] = data["policy"]

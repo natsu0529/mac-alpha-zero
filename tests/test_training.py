@@ -1,8 +1,12 @@
+import argparse
+import json
+
 import mlx.core as mx
 import mlx.optimizers as optim
 import numpy as np
+import pytest
 
-from mac_alpha_zero import arena, games
+from mac_alpha_zero import arena, games, runner
 from mac_alpha_zero.gumbel import gumbel_search
 from mac_alpha_zero.network import AlphaZeroNet, network_evaluator
 from mac_alpha_zero.replay import ReplayBuffer
@@ -109,3 +113,58 @@ def test_search_agent_beats_random():
         game, arena.puct_agent(game, heuristic, 64), arena.random_agent(game, 3), 32
     )
     assert result.score > 0.8
+
+
+def test_replay_buffer_round_trips_through_a_file(tmp_path):
+    rng = np.random.default_rng(0)
+    buffer = ReplayBuffer(capacity=10)
+    buffer.add(rng.random((14, 6, 7, 2)), rng.random((14, 7)), rng.random(14))
+    buffer.save(str(tmp_path / "buffer.npz"))
+    loaded = ReplayBuffer(capacity=10)
+    loaded.load(str(tmp_path / "buffer.npz"))
+    assert loaded.size == buffer.size
+    for a, b in zip(
+        buffer.sample(32, np.random.default_rng(1)),
+        loaded.sample(32, np.random.default_rng(1)),
+        strict=True,
+    ):
+        np.testing.assert_array_equal(np.array(a), np.array(b))
+    # New samples go to the same slot in both.
+    extra = rng.random((1, 6, 7, 2)), rng.random((1, 7)), rng.random(1)
+    buffer.add(*extra)
+    loaded.add(*extra)
+    np.testing.assert_array_equal(buffer._obs, loaded._obs)
+
+
+def run_training(tmp_path, *extra):
+    parser = argparse.ArgumentParser()
+    runner.add_arguments(parser)
+    arguments = [
+        *("--checkpoint", str(tmp_path / "net.safetensors")),
+        *("--games", "8", "--simulations", "4", "--channels", "8", "--blocks", "1"),
+        *("--steps-per-iteration", "8", "--train-steps", "2", "--batch-size", "16"),
+        *("--eval-every", "2", "--eval-games", "4", "--minutes", "0.02"),
+    ]
+    args = parser.parse_args([*arguments, *extra])
+    opponents = {"random": (arena.random_agent(game, seed=1), None)}
+    runner.run(game, args, opponents)
+    log = (tmp_path / "net.log.jsonl").read_text().splitlines()
+    return [json.loads(line) for line in log], json.loads((tmp_path / "net.json").read_text())
+
+
+def test_training_run_logs_and_resumes(tmp_path):
+    log, counters = run_training(tmp_path)
+    assert log[0]["iteration"] == 0
+    assert set(log[-1]["scores"]) == {"policy vs random", "search vs random"}
+    assert log[-1]["iteration"] == counters["iteration"] > 0
+
+    # Starting again on the same files without --resume is refused.
+    with pytest.raises(SystemExit):
+        run_training(tmp_path)
+
+    resumed_log, resumed = run_training(tmp_path, "--resume")
+    assert resumed_log[: len(log)] == log
+    assert resumed["iteration"] > counters["iteration"]
+    assert resumed["seconds"] > counters["seconds"]
+    assert resumed["games"] >= counters["games"]
+    assert [r["iteration"] for r in resumed_log] == sorted({r["iteration"] for r in resumed_log})
