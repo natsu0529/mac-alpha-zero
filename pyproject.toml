@@ -1,7 +1,7 @@
 [project]
 name = "mac-alpha-zero"
 version = "0.0.1"
-description = "AlphaZero-style self-play training that runs end to end on your Mac. Batched MCTS + Gumbel MuZero on MLX."
+description = "AlphaZero-style self-play training that runs end to end on your Mac. Batched MCTS + Gumbel AlphaZero on MLX."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

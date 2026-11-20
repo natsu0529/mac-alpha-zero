@@ -1,6 +1,6 @@
 # mac-alpha-zero
 
-Game-agnostic batched MCTS and AlphaZero / Gumbel MuZero–style self-play training on MLX for Apple Silicon. The plan and milestones are in ROADMAP.md; keep it current when scope or measurements change.
+Game-agnostic batched MCTS and Gumbel AlphaZero–style self-play training on MLX for Apple Silicon. The plan and milestones are in ROADMAP.md; keep it current when scope or measurements change.
 
 ## Commands
 

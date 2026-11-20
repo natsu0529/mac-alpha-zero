@@ -2,7 +2,7 @@
 
 **AlphaZero-style self-play training that runs end to end on your Mac.**
 
-`mac-alpha-zero` is a game-agnostic library for batched Monte Carlo Tree Search and AlphaZero / Gumbel MuZero–style training, built on [MLX](https://github.com/ml-explore/mlx) for Apple Silicon.
+`mac-alpha-zero` is a game-agnostic library for batched Monte Carlo Tree Search and Gumbel AlphaZero–style training, built on [MLX](https://github.com/ml-explore/mlx) for Apple Silicon.
 
 > **Status: pre-alpha.** Nothing is runnable yet. The plan, milestones, and the measurements taken so far are in [ROADMAP.md](ROADMAP.md).
 

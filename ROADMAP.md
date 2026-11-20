@@ -2,7 +2,7 @@
 
 ## Goal
 
-A game-agnostic library for batched MCTS and AlphaZero / Gumbel MuZero–style self-play training, built on [MLX](https://github.com/ml-explore/mlx) and tuned for Apple Silicon.
+A game-agnostic library for batched MCTS and Gumbel AlphaZero–style self-play training, built on [MLX](https://github.com/ml-explore/mlx) and tuned for Apple Silicon.
 
 The claim we want to be able to make, with numbers: **"Train a strong game-playing agent end to end on a single Mac, and know exactly how much strength each GPU-hour buys."**
 
