@@ -13,6 +13,7 @@ from mac_alpha_zero.reference.mcts import (
     random_rollout_evaluator,
     run_mcts,
 )
+from mac_alpha_zero.reference.othello import Othello, OthelloState
 from mac_alpha_zero.reference.solver import solve
 
 __all__ = [
@@ -22,6 +23,8 @@ __all__ = [
     "Game",
     "GumbelResult",
     "MCTSResult",
+    "Othello",
+    "OthelloState",
     "random_rollout_evaluator",
     "run_gumbel_mcts",
     "run_mcts",
