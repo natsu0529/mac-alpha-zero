@@ -22,8 +22,8 @@ CI (GitHub Actions, macos-latest) runs lint, format check, and tests. Hosted run
 
 - `src/mac_alpha_zero/reference/` — slow, single-game NumPy implementations: the correctness oracle. Clarity over speed. Do not optimize these.
   - `game.py` — the `Game` protocol. Values are always for the player to move.
-  - `connect4.py`, `mcts.py` (PUCT), `solver.py` (depth-limited negamax).
-- `src/mac_alpha_zero/games/` — batched MLX environments (`BatchedGame` protocol in `base.py`). States are dicts of arrays with a leading batch dimension.
+  - `connect4.py`, `othello.py` (explicit pass action 64, so players always alternate), `mcts.py` (PUCT), `solver.py` (depth-limited negamax).
+- `src/mac_alpha_zero/games/` — batched MLX environments (`BatchedGame` protocol in `base.py`). States are dicts of arrays with a leading batch dimension. `othello.py` uses uint64 bitboards (`own` / `opp` of the player to move) and is checked against the reference and perft to depth 9.
 - `src/mac_alpha_zero/mcts.py` — batched PUCT search. With `dtype=mx.float64` on the CPU it matches `reference.run_mcts` bit for bit; keep it that way (same operation order, first-index argmax tie-break).
 - `src/mac_alpha_zero/kernels.py` — fused Metal kernels (tree descent, backup), one GPU thread per tree. `search(..., use_kernels=True)` must give the same visit counts as the pure-MLX path; tests skip when Metal is unavailable.
 - `src/mac_alpha_zero/gumbel.py` — batched Gumbel root selection with Sequential Halving (`reference/gumbel.py` is its oracle; `sequential_halving.py` is the shared schedule). Nodes below the root still use PUCT; the paper's non-root selection rule is not implemented.
@@ -42,6 +42,7 @@ CI (GitHub Actions, macos-latest) runs lint, format check, and tests. Hosted run
 - Every fast implementation gets an equivalence test against the reference: same inputs, same visit counts / values.
 - The reference MCTS is deterministic for a deterministic evaluator (ties go to the lowest action index). Keep it that way.
 - Random-rollout MCTS can miss some tactics even with many simulations. Tactical tests use positions whose winning moves were precomputed with `solve` at a deeper depth.
+- NumPy and MLX add long arrays in different orders. Bit-for-bit float64 tests on games with many actions (Othello: 65) need evaluators whose priors and values are multiples of a power of two, so the sums are exact.
 - MLX 0.32.4 evaluates `mx.exp` at float32 precision even for float64 inputs. Anything that goes through exp or softmax can only be compared to the reference with a tolerance (~1e-6).
 - `games/connect4_solver.py` (exact bitboard solver) is only fast for positions with roughly 16+ stones; with fewer it can run for minutes or hours. Never call it on early positions in tests.
 - Solver calls deeper than ~5 plies take seconds in Python. Precompute and hard-code their results in tests.
