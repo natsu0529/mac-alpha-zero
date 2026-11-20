@@ -11,3 +11,4 @@ build/
 # Training artifacts
 checkpoints/
 runs/
+third_party/

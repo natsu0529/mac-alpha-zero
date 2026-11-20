@@ -24,10 +24,16 @@ class MatchResult(NamedTuple):
         return (self.wins + 0.5 * self.draws) / (self.wins + self.draws + self.losses)
 
 
-def play_match(game: BatchedGame, first: Agent, second: Agent, num_games: int) -> np.ndarray:
-    """Play `num_games` games in parallel. Returns +1 / 0 / -1 per game for `first`."""
-    state = game.init(num_games)
+def play_match(
+    game: BatchedGame, first: Agent, second: Agent, num_games: int, start: State | None = None
+) -> np.ndarray:
+    """Play `num_games` games in parallel. Returns +1 / 0 / -1 per game for `first`.
+
+    The games begin at `start` (`num_games` non-terminal states, `first` to move) or at
+    the starting position.
+    """
     fresh = game.init(num_games)
+    state = fresh if start is None else start
     results = np.zeros(num_games)
     finished = np.zeros(num_games, dtype=bool)
     ply = 0
@@ -49,11 +55,19 @@ def play_match(game: BatchedGame, first: Agent, second: Agent, num_games: int) -
     return results
 
 
-def evaluate(game: BatchedGame, agent: Agent, opponent: Agent, num_games: int) -> MatchResult:
-    """`agent` against `opponent`, half the games with each side moving first."""
+def evaluate(
+    game: BatchedGame, agent: Agent, opponent: Agent, num_games: int, start: State | None = None
+) -> MatchResult:
+    """`agent` against `opponent`, half the games with each side moving first.
+
+    `start` holds `num_games // 2` positions; each is played once with each side to move.
+    """
     half = num_games // 2
     results = np.concatenate(
-        [play_match(game, agent, opponent, half), -play_match(game, opponent, agent, half)]
+        [
+            play_match(game, agent, opponent, half, start),
+            -play_match(game, opponent, agent, half, start),
+        ]
     )
     return MatchResult(
         wins=int((results > 0).sum()),
