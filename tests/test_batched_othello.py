@@ -2,7 +2,8 @@ import mlx.core as mx
 import numpy as np
 import pytest
 
-from mac_alpha_zero import games, reference
+from mac_alpha_zero import arena, games, reference
+from mac_alpha_zero.selfplay import SelfPlay
 
 ref = reference.Othello()
 game = games.Othello()
@@ -75,3 +76,24 @@ def test_from_reference_round_trips():
     batched = game.from_reference(states)
     np.testing.assert_array_equal(np.array(game.boards(batched)), [s.board for s in states])
     np.testing.assert_array_equal(np.array(batched["player"]), [s.player for s in states])
+
+
+def test_self_play_and_arena_run_whole_games():
+    results = arena.play_match(game, arena.random_agent(game, 1), arena.random_agent(game, 2), 16)
+    assert set(np.unique(results)) <= {-1.0, 0.0, 1.0}
+
+    agent = arena.random_agent(game, 3)
+
+    def actor(state):
+        return agent(state), game.legal_mask(state).astype(mx.float32)
+
+    selfplay = SelfPlay(game, 8)
+    samples = 0
+    for _ in range(70):
+        observations, policies, outcomes = selfplay.step(actor)
+        assert observations.shape[1:] == (8, 8, 2)
+        assert policies.shape[1:] == (65,)
+        assert set(np.unique(outcomes)) <= {-1.0, 0.0, 1.0}
+        samples += len(outcomes)
+    assert selfplay.games_finished >= 8
+    assert samples >= 8 * 9

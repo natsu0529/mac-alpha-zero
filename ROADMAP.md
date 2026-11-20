@@ -73,6 +73,16 @@ The claim we want to be able to make, with numbers: **"Train a strong game-playi
   | Network + Gumbel search, 128 sims | 0.920 | 0.817 |
 
   After 10 minutes the network with search is about level with 100-simulation rollout MCTS on these positions and below 400. The positions come from random play, which self-play rarely visits, so this understates in-distribution strength; it is still the honest absolute number we have.
+- First Othello training run (2026-11-21, `examples/train_othello.py --minutes 10`, defaults: 256 parallel games, 32 Gumbel simulations, 4 blocks × 64 channels, Metal kernels on). Score over 64 games, half with each side moving first:
+
+  | Training minutes | Self-play games | Policy only vs random | Search vs random | Policy only vs rollout MCTS (8 sims) | Search vs rollout MCTS (8 sims) |
+  |---:|---:|---:|---:|---:|---:|
+  | 0 | 0 | 0.45 | 0.53 | 0.34 | 0.13 |
+  | 3.8 | 1,537 | 0.79 | 0.91 | 0.49 | 0.75 |
+  | 7.5 | 3,329 | 0.75 | 0.98 | 0.68 | 0.90 |
+  | 10.0 | 4,115 | 0.89 | 1.00 | 0.77 | 0.90 |
+
+  One run, one seed, and an 8-simulation rollout MCTS is a very weak opponent: this only shows that the loop learns Othello. About 7 self-play games per second (Connect4: 20). Gumbel search with a random 64x4 network runs about 32k simulations/s at batch 256, against 70k for Connect4, so the bitboard rules now cost about as much as the network. Random rollouts are slow (8 simulations on 64 boards take about 1.1 s), which is why the baseline is so weak; Edax replaces it.
 - MLX has no `while_loop` / `scan` inside compiled graphs. Tree descent has a data-dependent depth, so a pure-MLX descent becomes a Python loop that pays dispatch overhead per level. This is the main motivation for a fused Metal kernel.
 
 ## Milestones
@@ -100,6 +110,8 @@ Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT be
 - Arena evaluation and Elo tracking during training.
 - Evaluation against Edax at fixed levels.
 - Publish the curve: strength vs M5 GPU-hours.
+
+Status (2026-11-21): the bitboard environment is done and matches the reference rules and perft to depth 9 on both CPU and GPU. The ResNet, self-play, replay buffer, training loop (`runner.py`) and checkpoint saving work for Othello. Still open: Elo tracking, Edax evaluation, longer runs and the strength curve, resuming from a checkpoint.
 
 **Go/no-go:** an agent trained from zero on one Mac beats Edax at some non-trivial level, with the training run reproducible from a single command.
 
