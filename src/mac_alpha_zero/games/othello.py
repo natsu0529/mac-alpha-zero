@@ -1,7 +1,7 @@
 import mlx.core as mx
 import numpy as np
 
-from mac_alpha_zero.games.base import State
+from mac_alpha_zero.games.base import State, Symmetries
 
 SIZE = 8
 PASS = SIZE * SIZE
@@ -87,6 +87,15 @@ class Othello:
         """(B, 8, 8) int8 boards as in `reference.OthelloState`: +1 black, -1 white."""
         relative = _bits(state["own"]).astype(mx.int8) - _bits(state["opp"]).astype(mx.int8)
         return relative.reshape(-1, SIZE, SIZE) * state["player"][:, None, None]
+
+    def symmetries(self) -> Symmetries:
+        """The 8 rotations and reflections of the board, as `reference.Othello` numbers
+        them. The pass (action 64) maps to itself."""
+        squares = np.arange(PASS).reshape(SIZE, SIZE)
+        rotations = [np.rot90(squares, k) for k in range(4)]
+        squares = np.stack([board.reshape(PASS) for board in rotations + [r.T for r in rotations]])
+        passes = np.full((len(squares), 1), PASS)
+        return squares, np.concatenate([squares, passes], axis=1)
 
     def from_reference(self, states) -> State:
         """Stack `reference.OthelloState`s into a batched state."""

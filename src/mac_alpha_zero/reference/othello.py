@@ -53,6 +53,23 @@ class Othello:
             return None
         return float(np.sign(int(state.board.sum()) * state.player))
 
+    # The 8 symmetries of the square board. Symmetry k is `k % 4` quarter turns
+    # (counterclockwise, as `np.rot90`), followed by a transpose if k >= 4.
+    num_symmetries = 8
+
+    def transform_state(self, state: OthelloState, symmetry: int) -> OthelloState:
+        return OthelloState(board=_transform(state.board, symmetry), player=state.player)
+
+    def transform_policy(self, policy: np.ndarray, symmetry: int) -> np.ndarray:
+        """Move the entry of each square with the board. The pass stays last."""
+        squares = _transform(policy[:PASS].reshape(SIZE, SIZE), symmetry).reshape(PASS)
+        return np.concatenate([squares, policy[PASS:]])
+
+
+def _transform(board: np.ndarray, symmetry: int) -> np.ndarray:
+    board = np.rot90(board, symmetry % 4)
+    return (board.T if symmetry >= 4 else board).copy()
+
 
 def _flips(board: np.ndarray, player: int, row: int, col: int) -> list[tuple[int, int]]:
     """Opponent discs that `player` would flip by placing on the empty square (row, col)."""

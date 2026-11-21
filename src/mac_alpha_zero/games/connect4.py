@@ -1,7 +1,7 @@
 import mlx.core as mx
 import numpy as np
 
-from mac_alpha_zero.games.base import State
+from mac_alpha_zero.games.base import State, Symmetries
 
 ROWS = 6
 COLS = 7
@@ -55,6 +55,12 @@ class Connect4:
         full = mx.all(state["board"][:, ROWS - 1, :] != 0, axis=1)
         value = mx.where(won, -1.0, 0.0)
         return won | full, value
+
+    def symmetries(self) -> Symmetries:
+        """The identity and the left-right mirror."""
+        squares = np.arange(ROWS * COLS).reshape(ROWS, COLS)
+        squares = np.stack([squares.reshape(-1), squares[:, ::-1].reshape(-1)])
+        return squares, np.stack([np.arange(COLS), np.arange(COLS)[::-1]])
 
     def from_reference(self, states) -> State:
         """Stack `reference.Connect4State`s into a batched state."""
