@@ -168,3 +168,12 @@ def test_training_run_logs_and_resumes(tmp_path):
     assert resumed["seconds"] > counters["seconds"]
     assert resumed["games"] >= counters["games"]
     assert [r["iteration"] for r in resumed_log] == sorted({r["iteration"] for r in resumed_log})
+
+
+def test_learning_rate_decay_survives_resume(tmp_path):
+    log, counters = run_training(tmp_path, "--lr-half-life-minutes", "0.05")
+    assert counters["lr_schedule"] == {"initial": 0.002, "half_life_minutes": 0.05}
+    resumed_log, resumed = run_training(tmp_path, "--resume")
+    assert resumed["lr_schedule"] == counters["lr_schedule"]
+    assert 0 < resumed_log[-1]["learning_rate"] < log[-1]["learning_rate"]
+    assert resumed_log[-1]["learning_rate"] <= 0.002 * 0.5 ** (log[-1]["minutes"] / 0.05) + 1e-9

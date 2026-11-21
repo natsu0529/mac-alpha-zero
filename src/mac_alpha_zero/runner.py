@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import math
 import time
 from pathlib import Path
 
@@ -35,8 +36,24 @@ def add_arguments(parser: argparse.ArgumentParser, **defaults) -> None:
     parser.add_argument("--train-steps", type=int, default=32)
     parser.add_argument("--batch-size", type=int, default=512)
     parser.add_argument("--learning-rate", type=float, default=2e-3)
+    parser.add_argument(
+        "--lr-half-life-minutes",
+        type=float,
+        help="halve the learning rate every N training minutes (default: constant)",
+    )
     parser.add_argument("--buffer", type=int, default=200_000)
+    parser.add_argument(
+        "--symmetries",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="train on a random symmetric copy of each sample, if the game defines them",
+    )
     parser.add_argument("--eval-every", type=int, default=10, help="iterations")
+    parser.add_argument(
+        "--save-eval-weights",
+        action="store_true",
+        help="keep weights at each evaluation for checkpoint matches",
+    )
     parser.add_argument("--eval-games", type=int, default=128)
     parser.add_argument("--rollout-simulations", type=int, default=100)
     parser.add_argument("--seed", type=int, default=0)
@@ -83,11 +100,18 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
     counters_path = weights.with_suffix(".json")
     log_path = weights.with_suffix(".log.jsonl")
 
+    if args.lr_half_life_minutes is not None and not (
+        math.isfinite(args.lr_half_life_minutes) and args.lr_half_life_minutes > 0
+    ):
+        raise ValueError("--lr-half-life-minutes must be finite and positive")
+    mx.random.seed(args.seed)
     net = AlphaZeroNet(game.observation_shape, game.num_actions, args.channels, args.blocks)
     optimizer = optim.AdamW(learning_rate=args.learning_rate, weight_decay=1e-4)
     optimizer.init(net.trainable_parameters())
-    buffer = ReplayBuffer(args.buffer)
+    symmetries = getattr(game, "symmetries", None) if args.symmetries else None
+    buffer = ReplayBuffer(args.buffer, symmetries() if symmetries else None)
     counters = {"iteration": 0, "seconds": 0.0, "games": 0, "loss": float("nan")}
+    schedule = {"initial": args.learning_rate, "half_life_minutes": args.lr_half_life_minutes}
     if args.resume:
         net.load_weights(str(weights))
         saved = dict(mx.load(str(optimizer_path)))
@@ -95,9 +119,18 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
         optimizer.state = tree_unflatten(list(saved.items()))
         buffer.load(str(buffer_path))
         counters = json.loads(counters_path.read_text())
+        schedule = counters.get(
+            "lr_schedule", {"initial": scalars["learning_rate"], "half_life_minutes": None}
+        )
+        if (
+            args.lr_half_life_minutes is not None
+            and args.lr_half_life_minutes != schedule["half_life_minutes"]
+        ):
+            raise ValueError("--lr-half-life-minutes differs from the saved schedule")
         print(f"resumed {weights} at iteration {counters['iteration']} (step {scalars['step']})")
     elif counters_path.exists():
         raise SystemExit(f"{counters_path} exists: pass --resume or choose another --checkpoint")
+    counters["lr_schedule"] = schedule
     mx.eval(net.parameters(), optimizer.state)
 
     # A resumed run must not replay the random streams of the run it continues.
@@ -143,8 +176,19 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
             "loss": counters["loss"],
             "simulations": args.simulations,
             "eval_games": args.eval_games,
+            "learning_rate": optimizer.learning_rate.item(),
             "scores": scores,
         }
+        if args.save_eval_weights:
+            snapshot_dir = weights.parent / (weights.stem + ".snapshots")
+            snapshot_dir.mkdir(exist_ok=True)
+            snapshot = snapshot_dir / f"{counters['iteration']}.safetensors"
+            net.save_weights(str(snapshot))
+            record.update(
+                weights=str(snapshot.relative_to(log_path.parent)),
+                channels=args.channels,
+                blocks=args.blocks,
+            )
         with log_path.open("a") as log:
             log.write(json.dumps(record) + "\n")
         print(
@@ -154,7 +198,10 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
         )
 
     selfplay = SelfPlay(game, args.games)
-    print(f"kernels={use_kernels} games={args.games} simulations={args.simulations}")
+    print(
+        f"kernels={use_kernels} games={args.games} simulations={args.simulations} "
+        f"symmetries={buffer.symmetries is not None}"
+    )
     print("score columns (policy = no search, search = Gumbel search):")
     for name in opponents:
         print(f"  policy vs {name}, search vs {name}")
@@ -171,6 +218,11 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
             for _ in range(args.steps_per_iteration):
                 buffer.add(*selfplay.step(self_play_actor))
             if buffer.size >= args.batch_size:
+                if schedule["half_life_minutes"] is not None:
+                    elapsed_minutes = counters["seconds"] / 60
+                    optimizer.learning_rate = schedule["initial"] * 0.5 ** (
+                        elapsed_minutes / schedule["half_life_minutes"]
+                    )
                 net.train()
                 for _ in range(args.train_steps):
                     loss = train_step(net, optimizer, *buffer.sample(args.batch_size, rng))
