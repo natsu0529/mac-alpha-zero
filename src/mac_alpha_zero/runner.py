@@ -30,6 +30,11 @@ def add_arguments(parser: argparse.ArgumentParser, **defaults) -> None:
     parser.add_argument("--minutes", type=float, default=10.0, help="training time of this run")
     parser.add_argument("--games", type=int, default=256, help="parallel self-play games")
     parser.add_argument("--simulations", type=int, default=32)
+    parser.add_argument(
+        "--improved-nonroot",
+        action="store_true",
+        help="track the improved policy below the search root",
+    )
     parser.add_argument("--channels", type=int, default=64)
     parser.add_argument("--blocks", type=int, default=4)
     parser.add_argument("--steps-per-iteration", type=int, default=16, help="self-play moves")
@@ -145,7 +150,13 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
         nonlocal key
         key, subkey = mx.random.split(key)
         result = gumbel_search(
-            game, state, evaluator, args.simulations, key=subkey, use_kernels=use_kernels
+            game,
+            state,
+            evaluator,
+            args.simulations,
+            key=subkey,
+            use_kernels=use_kernels,
+            improved_nonroot=args.improved_nonroot,
         )
         return result.action, result.improved_policy
 
@@ -163,7 +174,9 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
 
     def report():
         net.eval()
-        search_agent = arena.gumbel_agent(game, evaluator, args.simulations)
+        search_agent = arena.gumbel_agent(
+            game, evaluator, args.simulations, improved_nonroot=args.improved_nonroot
+        )
         scores = {}
         for name, (opponent, start) in opponents.items():
             for kind, agent in (("policy", raw_policy_agent), ("search", search_agent)):
@@ -175,6 +188,7 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
             "games": counters["games"],
             "loss": counters["loss"],
             "simulations": args.simulations,
+            "improved_nonroot": args.improved_nonroot,
             "eval_games": args.eval_games,
             "learning_rate": optimizer.learning_rate.item(),
             "scores": scores,

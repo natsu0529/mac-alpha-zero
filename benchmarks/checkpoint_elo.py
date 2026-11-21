@@ -51,7 +51,12 @@ def checkpoint_matches(rows, log_dir, games, opening_plies, seed):
         net = AlphaZeroNet(game.observation_shape, game.num_actions, row["channels"], row["blocks"])
         net.load_weights(str(log_dir / row["weights"]))
         net.eval()
-        agent = arena.gumbel_agent(game, network_evaluator(game, net), row["simulations"])
+        agent = arena.gumbel_agent(
+            game,
+            network_evaluator(game, net),
+            row["simulations"],
+            improved_nonroot=row.get("improved_nonroot", False),
+        )
         name = str(row["iteration"])
         if previous:
             other_name, other_agent = previous

@@ -1,6 +1,7 @@
 """Batched Gumbel root action selection. Semantics match `reference.gumbel`.
 
-The root uses Gumbel noise with Sequential Halving; nodes below the root use PUCT.
+The root uses Gumbel noise with Sequential Halving. Nodes below the root can use PUCT
+or the improved-policy rule.
 """
 
 from typing import NamedTuple
@@ -9,7 +10,7 @@ import mlx.core as mx
 import numpy as np
 
 from mac_alpha_zero.games.base import BatchedGame, State
-from mac_alpha_zero.mcts import Evaluator, _new_tree, _root_child_stats, _simulate
+from mac_alpha_zero.mcts import Evaluator, _child_stats, _new_tree, _root_child_stats, _simulate
 from mac_alpha_zero.sequential_halving import considered_visit_sequence
 
 _TINY = 1e-30
@@ -36,6 +37,7 @@ def gumbel_search(
     c_puct: float = 1.25,
     dtype: mx.Dtype = mx.float32,
     use_kernels: bool = False,
+    improved_nonroot: bool = False,
 ) -> GumbelResult:
     """Search with `num_simulations` evaluations per tree; the first expands the root.
 
@@ -47,8 +49,35 @@ def gumbel_search(
         gumbel = mx.random.gumbel((batch, game.num_actions), key=key)
     gumbel = gumbel.astype(dtype)
 
+    raw_values = mx.zeros_like(tree.value_sum) if improved_nonroot else None
+
+    def interior_action(node):
+        visits, q = _child_stats(tree, rows, tree.children[rows, node])
+        prior = tree.prior[rows, node]
+        legal = tree.legal[rows, node]
+        sigma = _sigma_completed_q(prior, visits, q, raw_values[rows, node], c_visit, c_scale)
+        shift = mx.max(mx.where(legal, sigma, -mx.inf), axis=-1, keepdims=True)
+        weights = mx.where(legal, mx.maximum(prior, _TINY) * mx.exp(sigma - shift), 0)
+        policy = weights / mx.maximum(weights.sum(axis=-1, keepdims=True), _TINY)
+        deficit = policy - visits / (1 + visits.sum(axis=-1, keepdims=True))
+        return mx.argmax(mx.where(legal, deficit, -mx.inf), axis=-1).astype(mx.int32)
+
     def simulate(sim, root_action=None):
-        return _simulate(game, tree, rows, sim, evaluator, c_puct, dtype, use_kernels, root_action)
+        value = _simulate(
+            game,
+            tree,
+            rows,
+            sim,
+            evaluator,
+            c_puct,
+            dtype,
+            use_kernels,
+            root_action,
+            interior_action if improved_nonroot else None,
+        )
+        if raw_values is not None:
+            raw_values[:, sim] = value
+        return value
 
     raw_value = simulate(0)
     legal = tree.legal[:, 0]

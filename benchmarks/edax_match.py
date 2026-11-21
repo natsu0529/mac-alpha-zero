@@ -21,6 +21,7 @@ from mac_alpha_zero.network import AlphaZeroNet, network_evaluator
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--checkpoint", help="network weights from examples/train_othello.py")
+    parser.add_argument("--improved-nonroot", action="store_true")
     parser.add_argument("--channels", type=int, default=64)
     parser.add_argument("--blocks", type=int, default=4)
     parser.add_argument("--simulations", type=int, nargs="+", default=[32, 128])
@@ -48,7 +49,7 @@ def main():
         agents["network, policy only"] = raw_policy
         for sims in args.simulations:
             agents[f"network + Gumbel search, {sims} sims"] = arena.gumbel_agent(
-                game, network_evaluator(game, net), sims
+                game, network_evaluator(game, net), sims, improved_nonroot=args.improved_nonroot
             )
 
     print(f"{args.games} games per cell, {args.opening_plies} random opening plies")

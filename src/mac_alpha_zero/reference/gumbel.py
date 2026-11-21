@@ -1,8 +1,7 @@
 """Gumbel root action selection (Danihelka et al., 2022) on a single tree.
 
 The root uses Gumbel noise with Sequential Halving and returns the improved policy from
-completed Q-values. Nodes below the root still use PUCT; the paper's deterministic
-non-root selection is not implemented yet.
+completed Q-values. The optional non-root rule tracks the improved policy below the root.
 """
 
 from dataclasses import dataclass
@@ -37,6 +36,7 @@ def run_gumbel_mcts(
     c_visit: float = 50.0,
     c_scale: float = 0.1,
     c_puct: float = 1.25,
+    improved_nonroot: bool = False,
 ) -> GumbelResult:
     """Search with `num_simulations` evaluations; the first one expands the root.
 
@@ -62,10 +62,30 @@ def run_gumbel_mcts(
         score = np.maximum(_LOW_SCORE, gumbel + logits + sigma)
         return np.where(legal & (visits == considered_visit), score, -np.inf), sigma
 
+    def interior_action(node):
+        actions = sorted(node.children)
+        visits = _root_visits(game, node)
+        priors = np.zeros(game.num_actions)
+        values = np.zeros(game.num_actions)
+        for action in actions:
+            priors[action] = node.children[action].prior
+            values[action] = node.children[action].q
+        sigma = sigma_completed_q(priors, visits, values, node.raw_value, c_visit, c_scale)
+        weights = np.maximum(priors[actions], _TINY) * np.exp(sigma[actions] - sigma[actions].max())
+        deficit = weights / weights.sum() - visits[actions] / (1 + visits.sum())
+        return actions[np.argmax(deficit)]
+
     num_considered = min(max_considered, int(legal.sum()))
     for considered_visit in considered_visit_sequence(num_considered, num_simulations - 1):
         score, _ = scores(considered_visit)
-        _simulate(game, root, evaluator, c_puct, root_action=int(np.argmax(score)))
+        _simulate(
+            game,
+            root,
+            evaluator,
+            c_puct,
+            root_action=int(np.argmax(score)),
+            interior_action=interior_action if improved_nonroot else None,
+        )
 
     visits = _root_visits(game, root)
     score, sigma = scores(int(visits.max()))
