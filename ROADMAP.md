@@ -129,6 +129,17 @@ The claim we want to be able to make, with numbers: **"Train a strong game-playi
     | 650–831 | 8.9–11.0 | Lid opened and Silent Running unclamped at 13:04:06 |
 
     The populated replay buffer stayed at its 200k capacity across both recoveries. Evaluation runs synchronously outside the training timer. The 600–650 window alone took about 70 wall minutes for 8.7 training minutes. Sleep explains the missing wall time, and both changes out of the clamped power state coincide with recovery in awake throughput. The original run did not record GPU clocks, temperature, or swap activity, so it cannot isolate their individual contributions. For comparable throughput, keep the lid open on AC and prevent idle sleep for the duration of the command, e.g. `caffeinate -i uv run python examples/train_othello.py --minutes 120`.
+- Ratings for the first 2-hour Othello run, fitted to all 18 evaluations with `uv run python benchmarks/checkpoint_elo.py checkpoints/othello.log.jsonl`. Edax level 1 is fixed at 0 Elo. A Bradley–Terry fit uses the 32-simulation search scores against random and Edax levels 1–3 (64 games per opponent, draws worth half a point), with an 800-Elo Gaussian prior on each free rating to keep undefeated players finite. These are estimates from one seed and repeated openings.
+
+  | Training minutes | 0 | 6.8 | 13.2 | 19.5 | 25.8 | 35.5 | 44.5 | 56.2 | 61.2 |
+  |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+  | Elo | -1127 | -420 | -396 | -273 | -336 | -280 | -240 | -246 | -189 |
+
+  | Training minutes | 66.1 | 72.1 | 81.6 | 90.5 | 99.2 | 104.3 | 110.1 | 116.1 | 120.0 |
+  |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+  | Elo | -246 | -210 | -228 | -266 | -189 | -189 | -174 | -210 | -194 |
+
+  The original run overwrote intermediate weights. For a new Othello run, pass `--save-eval-weights` to training, then add `--match-games 64` to the rating command to include adjacent checkpoints playing the same openings as both colors. Redirect stdout to save the ratings as JSONL.
 - MLX has no `while_loop` / `scan` inside compiled graphs. Tree descent has a data-dependent depth, so a pure-MLX descent becomes a Python loop that pays dispatch overhead per level. This is the main motivation for a fused Metal kernel.
 
 ## Milestones
@@ -157,7 +168,7 @@ Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT be
 - Evaluation against Edax at fixed levels.
 - Publish the curve: strength vs M5 GPU-hours.
 
-Status (2026-11-21): the bitboard environment is done and matches the reference rules and perft to depth 9 on both CPU and GPU. The ResNet, self-play, replay buffer, training loop (`runner.py`) and checkpoint saving work for Othello. Matches against Edax at fixed levels work (`benchmarks/edax_match.py`). Runs resume from their saved state and log their scores against Edax as they train. Still open: Elo tracking, and settings that get past Edax level 1 (the first 2-hour run plateaus well below it).
+Status (2026-11-21): the bitboard environment is done and matches the reference rules and perft to depth 9 on both CPU and GPU. The ResNet, self-play, replay buffer, training loop (`runner.py`) and checkpoint saving work for Othello. Matches against Edax at fixed levels work (`benchmarks/edax_match.py`). Runs resume from their saved state and log their scores against Edax as they train. Ratings are available from the evaluation log and optional checkpoint matches. Still open: settings that get past Edax level 1 (the first 2-hour run plateaus well below it).
 
 **Go/no-go:** an agent trained from zero on one Mac beats Edax at some non-trivial level, with the training run reproducible from a single command.
 

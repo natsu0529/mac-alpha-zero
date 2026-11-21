@@ -66,11 +66,11 @@ Working now:
 - PUCT and Gumbel root selection (strong policy improvement at low simulation counts).
 - Fused Metal kernels for tree descent and backup.
 - Self-play, replay buffer, training loop with resume, and arena matches against fixed opponents (random, rollout MCTS, Edax).
+- Anchored Elo ratings from Othello evaluation logs and optional matches between saved checkpoints.
 - A small environment interface: bring your own game by supplying batched rules and an observation encoding.
 
 Planned:
 
-- Elo tracking across training.
 - Chess and 9×9 Go.
 - A PyPI release.
 
