@@ -131,6 +131,27 @@ The claim we want to be able to make, with numbers: **"Train a strong game-playi
     The populated replay buffer stayed at its 200k capacity across both recoveries. Evaluation runs synchronously outside the training timer. The 600–650 window alone took about 70 wall minutes for 8.7 training minutes. Sleep explains the missing wall time, and both changes out of the clamped power state coincide with recovery in awake throughput. The original run did not record GPU clocks, temperature, or swap activity, so it cannot isolate their individual contributions. For comparable throughput, keep the lid open on AC and prevent idle sleep for the duration of the command, e.g. `caffeinate -i uv run python examples/train_othello.py --minutes 120`.
 - MLX has no `while_loop` / `scan` inside compiled graphs. Tree descent has a data-dependent depth, so a pure-MLX descent becomes a Python loop that pays dispatch overhead per level. This is the main motivation for a fused Metal kernel.
 
+## Equal-time Othello comparison
+
+For the network, replay, and search-target comparison, give each configuration 60 minutes of self-play and optimization on the same M5. Use seed 0, board symmetries, constant learning rate 0.002, and 256 parallel games. Evaluate only before and after the timed work. Run one configuration at a time with the lid open on AC.
+
+| Run | Residual blocks × channels | Replay capacity | Self-play simulations |
+|---|---:|---:|---:|
+| Control | 4 × 64 | 200k | 32 |
+| Larger network | 6 × 96 | 200k | 32 |
+| Larger replay | 4 × 64 | 500k | 32 |
+| More search | 4 × 64 | 200k | 64 |
+| More search | 4 × 64 | 200k | 128 |
+
+For the control:
+
+```sh
+uv run python examples/train_othello.py --minutes 60 --symmetries --eval-every 100000 --checkpoint checkpoints/control.safetensors
+uv run python benchmarks/edax_match.py --checkpoint checkpoints/control.safetensors --games 100 --levels 1 2 --simulations 32 128 512
+```
+
+Use a fresh checkpoint path for each run. Change only `--blocks 6 --channels 96`, `--buffer 500000`, or `--simulations 64` / `128` in training. For the larger network, also pass its shape to the match command. The runner's clock excludes evaluation and checkpoint I/O. Record actual elapsed time separately. Each final match uses the same 50 six-ply openings, once per color. Compare the level-1 score at **128 evaluation simulations** across configurations, retaining the control in a tie. Report the remaining budgets and level 2 alongside that comparison, then check the leading configuration on fresh openings before changing defaults.
+
 ## Milestones
 
 Each milestone ends with a go/no-go check and something written up. Weeks are targets, not promises.
