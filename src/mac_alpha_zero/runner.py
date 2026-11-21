@@ -190,6 +190,9 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
             "simulations": args.simulations,
             "improved_nonroot": args.improved_nonroot,
             "eval_games": args.eval_games,
+            "selfplay_games_per_second": (
+                selfplay.games_finished / selfplay_seconds if selfplay_seconds > 0 else None
+            ),
             "learning_rate": optimizer.learning_rate.item(),
             "scores": scores,
         }
@@ -212,6 +215,7 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
         )
 
     selfplay = SelfPlay(game, args.games)
+    selfplay_seconds = 0.0
     print(
         f"kernels={use_kernels} games={args.games} simulations={args.simulations} "
         f"symmetries={buffer.symmetries is not None}"
@@ -231,6 +235,7 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
             net.eval()
             for _ in range(args.steps_per_iteration):
                 buffer.add(*selfplay.step(self_play_actor))
+            selfplay_seconds += time.perf_counter() - start
             if buffer.size >= args.batch_size:
                 if schedule["half_life_minutes"] is not None:
                     elapsed_minutes = counters["seconds"] / 60
@@ -254,4 +259,6 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
     if counters["iteration"] % args.eval_every != 0:
         report()
     save()
+    if selfplay_seconds > 0:
+        print(f"Self-play: {selfplay.games_finished / selfplay_seconds:.2f} games/s this run")
     print(f"saved {weights}")

@@ -110,6 +110,8 @@ The core is game-agnostic. Each game has its own rules, network config, and trai
 - Apple Silicon Mac (developed on an M5 with 24 GB)
 - macOS with Python 3.10+ and MLX 0.32.4+ (`uv` installs both)
 
+Help document support for other Macs by [reporting a quickstart result](CONTRIBUTING.md#report-an-apple-silicon-quickstart).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests, and benchmarks. Issues and discussion about the API and the roadmap are welcome. Ideas for getting the Othello agent past Edax level 1 are especially welcome; the open suspects are listed in [ROADMAP.md](ROADMAP.md).
