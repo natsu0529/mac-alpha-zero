@@ -44,6 +44,17 @@ class Connect4:
             return 0.0
         return None
 
+    # Symmetry 1 mirrors the board left to right; symmetry 0 is the identity.
+    num_symmetries = 2
+
+    def transform_state(self, state: Connect4State, symmetry: int) -> Connect4State:
+        board = state.board[:, ::-1].copy() if symmetry else state.board
+        return Connect4State(board=board, player=state.player, winner=state.winner)
+
+    def transform_policy(self, policy: np.ndarray, symmetry: int) -> np.ndarray:
+        """Move the entry of each column with the board."""
+        return policy[::-1].copy() if symmetry else policy
+
     def from_moves(self, moves: str) -> Connect4State:
         """Build a position from 1-indexed column digits, e.g. "4453"."""
         state = self.initial_state()
