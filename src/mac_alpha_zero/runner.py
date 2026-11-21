@@ -36,6 +36,12 @@ def add_arguments(parser: argparse.ArgumentParser, **defaults) -> None:
     parser.add_argument("--batch-size", type=int, default=512)
     parser.add_argument("--learning-rate", type=float, default=2e-3)
     parser.add_argument("--buffer", type=int, default=200_000)
+    parser.add_argument(
+        "--symmetries",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="train on a random symmetric copy of each sample, if the game defines them",
+    )
     parser.add_argument("--eval-every", type=int, default=10, help="iterations")
     parser.add_argument("--eval-games", type=int, default=128)
     parser.add_argument("--rollout-simulations", type=int, default=100)
@@ -86,7 +92,8 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
     net = AlphaZeroNet(game.observation_shape, game.num_actions, args.channels, args.blocks)
     optimizer = optim.AdamW(learning_rate=args.learning_rate, weight_decay=1e-4)
     optimizer.init(net.trainable_parameters())
-    buffer = ReplayBuffer(args.buffer)
+    symmetries = getattr(game, "symmetries", None) if args.symmetries else None
+    buffer = ReplayBuffer(args.buffer, symmetries() if symmetries else None)
     counters = {"iteration": 0, "seconds": 0.0, "games": 0, "loss": float("nan")}
     if args.resume:
         net.load_weights(str(weights))
@@ -154,7 +161,10 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
         )
 
     selfplay = SelfPlay(game, args.games)
-    print(f"kernels={use_kernels} games={args.games} simulations={args.simulations}")
+    print(
+        f"kernels={use_kernels} games={args.games} simulations={args.simulations} "
+        f"symmetries={buffer.symmetries is not None}"
+    )
     print("score columns (policy = no search, search = Gumbel search):")
     for name in opponents:
         print(f"  policy vs {name}, search vs {name}")
