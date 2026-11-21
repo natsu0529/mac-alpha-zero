@@ -1,0 +1,57 @@
+name: Publish a released wheel
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published GitHub release tag, for example v0.1.0
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+      - name: Verify release and package version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$RELEASE_TAG" = "v$(uv version --short)"
+          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)" = false
+      - name: Build the Apple Silicon wheel
+        run: |
+          uv build --wheel
+          uvx --from wheel wheel tags --remove --platform-tag macosx_14_0_arm64 dist/*.whl
+      - name: Install the wheel in a fresh environment
+        run: |
+          uv venv "$RUNNER_TEMP/wheel-test" --python 3.13
+          uv pip install --python "$RUNNER_TEMP/wheel-test/bin/python" dist/*.whl
+          cd "$RUNNER_TEMP"
+          wheel-test/bin/python -c 'from mac_alpha_zero import games; assert games.Othello().num_actions == 65'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel
+          path: dist/*.whl
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
