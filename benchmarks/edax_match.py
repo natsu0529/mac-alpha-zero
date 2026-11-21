@@ -21,6 +21,9 @@ from mac_alpha_zero.network import AlphaZeroNet, network_evaluator
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--checkpoint", help="network weights from examples/train_othello.py")
+    parser.add_argument(
+        "--search-only", action="store_true", help="only evaluate the checkpoint with search"
+    )
     parser.add_argument("--improved-nonroot", action="store_true")
     parser.add_argument("--channels", type=int, default=64)
     parser.add_argument("--blocks", type=int, default=4)
@@ -32,10 +35,15 @@ def main():
     parser.add_argument("--edax", default=str(DEFAULT_PATH), help="path to the Edax binary")
     args = parser.parse_args()
 
+    if args.search_only and not args.checkpoint:
+        parser.error("--search-only requires --checkpoint")
+    if args.games < 2 or args.games % 2:
+        parser.error("--games must be even and at least two for paired openings")
+
     game = games.Othello()
     start = arena.random_openings(game, args.games // 2, args.opening_plies, args.seed)
 
-    agents = {"random": arena.random_agent(game, seed=args.seed + 1)}
+    agents = {} if args.search_only else {"random": arena.random_agent(game, seed=args.seed + 1)}
     if args.checkpoint:
         net = AlphaZeroNet(game.observation_shape, game.num_actions, args.channels, args.blocks)
         net.load_weights(args.checkpoint)
@@ -46,7 +54,8 @@ def main():
             masked = mx.where(game.legal_mask(state), logits, -mx.inf)
             return mx.argmax(masked, axis=-1).astype(mx.int32)
 
-        agents["network, policy only"] = raw_policy
+        if not args.search_only:
+            agents["network, policy only"] = raw_policy
         for sims in args.simulations:
             agents[f"network + Gumbel search, {sims} sims"] = arena.gumbel_agent(
                 game, network_evaluator(game, net), sims, improved_nonroot=args.improved_nonroot

@@ -19,7 +19,9 @@ def record(args):
     net = AlphaZeroNet(game.observation_shape, game.num_actions, args.channels, args.blocks)
     net.load_weights(str(args.checkpoint))
     net.eval()
-    agent = arena.gumbel_agent(game, network_evaluator(game, net), args.simulations)
+    agent = arena.gumbel_agent(
+        game, network_evaluator(game, net), args.simulations, improved_nonroot=args.improved_nonroot
+    )
     edax = edax_agent(args.level, args.edax)
     opening = arena.random_agent(game, args.seed)
     black, white = (agent, edax) if args.color == "black" else (edax, agent)
@@ -42,6 +44,9 @@ def record(args):
         "white_discs": int((board == -1).sum()),
         "checkpoint_sha256": hashlib.sha256(args.checkpoint.read_bytes()).hexdigest(),
         "simulations": args.simulations,
+        "improved_nonroot": args.improved_nonroot,
+        "channels": args.channels,
+        "blocks": args.blocks,
         "seed": args.seed,
         "opening_plies": args.opening_plies,
     }
@@ -105,6 +110,7 @@ def main():
     match.add_argument("--level", type=int, default=1)
     match.add_argument("--edax", type=Path, default=DEFAULT_PATH)
     match.add_argument("--simulations", type=int, default=32)
+    match.add_argument("--improved-nonroot", action="store_true")
     match.add_argument("--channels", type=int, default=64)
     match.add_argument("--blocks", type=int, default=4)
     match.add_argument("--color", choices=("black", "white"), default="black")

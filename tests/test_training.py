@@ -155,6 +155,8 @@ def run_training(tmp_path, *extra):
 def test_training_run_logs_and_resumes(tmp_path):
     log, counters = run_training(tmp_path)
     assert log[0]["iteration"] == 0
+    assert log[0]["selfplay_games_per_second"] is None
+    assert log[-1]["selfplay_games_per_second"] >= 0
     assert set(log[-1]["scores"]) == {"policy vs random", "search vs random"}
     assert log[-1]["iteration"] == counters["iteration"] > 0
 

@@ -28,6 +28,17 @@ uv run python examples/train_othello.py --minutes 60 --resume   # continue the s
 
 Weights, the replay buffer and a score log go to `checkpoints/`.
 
+### Play a saved Othello agent
+
+Use the weights produced by the Othello quickstart to play in the terminal. You play black (`X`) by default. Enter a listed square such as `d3`, or pass `--color white` to play second. Edax is only needed for the benchmark.
+
+```sh
+uv run python examples/play_othello.py checkpoints/othello.safetensors
+uv run python benchmarks/edax_match.py --checkpoint checkpoints/othello.safetensors --search-only --levels 1 --games 100 --simulations 32
+```
+
+Both commands accept `--channels` and `--blocks` for checkpoints trained with a custom network shape. For a score comparison, use the same search budget, opening seed, and non-root rule as the original match.
+
 ## Results so far
 
 Apple M5, 24 GB, MLX 0.32.4. One run and one seed each; details and caveats in [ROADMAP.md](ROADMAP.md).
@@ -98,6 +109,8 @@ The core is game-agnostic. Each game has its own rules, network config, and trai
 
 - Apple Silicon Mac (developed on an M5 with 24 GB)
 - macOS with Python 3.10+ and MLX 0.32.4+ (`uv` installs both)
+
+Help document support for other Macs by [reporting a quickstart result](CONTRIBUTING.md#report-an-apple-silicon-quickstart).
 
 ## Contributing
 
