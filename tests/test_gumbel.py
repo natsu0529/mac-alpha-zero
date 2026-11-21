@@ -62,7 +62,13 @@ def test_reference_finds_immediate_win():
 @pytest.mark.parametrize(
     ("num_simulations", "max_considered"), [(1, 16), (2, 16), (17, 4), (64, 16)]
 )
-def test_batched_matches_reference_in_float64(cpu, num_simulations, max_considered):  # noqa: F811
+@pytest.mark.parametrize("improved_nonroot", [False, True])
+@pytest.mark.usefixtures("cpu")
+def test_batched_matches_reference_in_float64(
+    num_simulations,
+    max_considered,
+    improved_nonroot,
+):
     positions = [ref.initial_state(), ref.from_moves("121212"), ref.from_moves("444444")]
     positions += random_positions(13, seed=num_simulations)
     noise = gumbel_noise(len(positions), seed=num_simulations)
@@ -74,15 +80,22 @@ def test_batched_matches_reference_in_float64(cpu, num_simulations, max_consider
         gumbel=mx.array(noise, dtype=mx.float64),
         max_considered=max_considered,
         dtype=mx.float64,
+        improved_nonroot=improved_nonroot,
     )
     for i, state in enumerate(positions):
         expected = reference.run_gumbel_mcts(
-            ref, state, ref_evaluator, num_simulations, noise[i], max_considered=max_considered
+            ref,
+            state,
+            ref_evaluator,
+            num_simulations,
+            noise[i],
+            max_considered=max_considered,
+            improved_nonroot=improved_nonroot,
         )
         np.testing.assert_array_equal(np.array(result.visit_counts[i]), expected.visit_counts)
         assert int(result.action[i]) == expected.action
         # MLX 0.32.4 evaluates exp at float32 precision even for float64 inputs, so the
-        # softmax output is only close. Selection does not use exp and stays exact.
+        # softmax output is only close.
         np.testing.assert_allclose(
             np.array(result.improved_policy[i]), expected.improved_policy, rtol=1e-6, atol=1e-9
         )
@@ -97,10 +110,21 @@ def test_samples_noise_when_none_is_given():
 
 
 @pytest.mark.skipif(not kernels.is_available(), reason="needs the Metal GPU")
-def test_kernels_match_pure_mlx():
+@pytest.mark.parametrize("improved_nonroot", [False, True])
+def test_kernels_match_pure_mlx(improved_nonroot):
     root = game.from_reference(random_positions(64, seed=5))
     noise = mx.array(gumbel_noise(64, seed=5), dtype=mx.float32)
-    expected = gumbel_search(game, root, evaluator32, 64, gumbel=noise)
-    result = gumbel_search(game, root, evaluator32, 64, gumbel=noise, use_kernels=True)
+    expected = gumbel_search(
+        game, root, evaluator32, 64, gumbel=noise, improved_nonroot=improved_nonroot
+    )
+    result = gumbel_search(
+        game,
+        root,
+        evaluator32,
+        64,
+        gumbel=noise,
+        use_kernels=True,
+        improved_nonroot=improved_nonroot,
+    )
     np.testing.assert_array_equal(np.array(result.visit_counts), np.array(expected.visit_counts))
     np.testing.assert_array_equal(np.array(result.action), np.array(expected.action))

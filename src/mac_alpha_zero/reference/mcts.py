@@ -18,6 +18,7 @@ class _Node:
     # Sum of values from the perspective of the player who chose the action leading here,
     # so a parent can rank its children by mean value directly.
     value_sum: float = 0.0
+    raw_value: float = 0.0
     children: dict[int, "_Node"] = field(default_factory=dict)
 
     @property
@@ -61,6 +62,7 @@ def _simulate(
     evaluator: Evaluator,
     c_puct: float,
     root_action: int | None = None,
+    interior_action: Callable[[_Node], int] | None = None,
 ) -> None:
     """One simulation. `root_action` overrides PUCT selection at the root."""
     node = root
@@ -68,6 +70,9 @@ def _simulate(
     while node.children:
         if node is root and root_action is not None:
             action, child = root_action, node.children[root_action]
+        elif interior_action is not None and node is not root:
+            action = interior_action(node)
+            child = node.children[action]
         else:
             action, child = _select(node, c_puct)
         if child.state is None:
@@ -78,6 +83,7 @@ def _simulate(
     value = game.terminal_value(node.state)
     if value is None:
         priors, value = evaluator(node.state)
+        node.raw_value = value
         _expand(node, priors, game.legal_mask(node.state))
 
     for n in reversed(path):

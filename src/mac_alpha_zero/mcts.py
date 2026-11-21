@@ -99,6 +99,7 @@ def _simulate(
     dtype: mx.Dtype,
     use_kernels: bool,
     root_action: mx.array | None = None,
+    interior_action: Callable | None = None,
 ) -> mx.array:
     """Run simulation `sim` in every tree. Simulation 0 expands the root.
 
@@ -108,8 +109,12 @@ def _simulate(
     if sim == 0:
         leaf = mx.zeros((rows.shape[0],), dtype=mx.int32)
     else:
-        walk = _descend_kernel if use_kernels else _descend
-        node, new_parent, new_action = walk(tree, rows, sim, c_puct, root_action)
+        if use_kernels and interior_action is None:
+            node, new_parent, new_action = _descend_kernel(tree, rows, sim, c_puct, root_action)
+        else:
+            node, new_parent, new_action = _descend(
+                tree, rows, sim, c_puct, root_action, interior_action
+            )
         leaf = _add_node(game, tree, rows, sim, node, new_parent, new_action)
     leaf_state = {k: v[rows, leaf] for k, v in tree.states.items()}
     value = _evaluate_and_expand(game, tree, rows, leaf, leaf_state, evaluator, dtype)
@@ -125,7 +130,10 @@ def _simulate(
 
 def _root_child_stats(tree: _Tree, rows: mx.array) -> tuple[mx.array, mx.array]:
     """(visits, q) of the root's children, both (B, A). Unvisited children have q = 0."""
-    children = tree.children[:, 0]
+    return _child_stats(tree, rows, tree.children[:, 0])
+
+
+def _child_stats(tree: _Tree, rows: mx.array, children: mx.array) -> tuple[mx.array, mx.array]:
     exists = children >= 0
     index = mx.maximum(children, 0)
     visits = mx.where(exists, tree.visits[rows[:, None], index], 0)
@@ -134,12 +142,7 @@ def _root_child_stats(tree: _Tree, rows: mx.array) -> tuple[mx.array, mx.array]:
 
 
 def _select(tree: _Tree, rows: mx.array, node: mx.array, c_puct: float) -> mx.array:
-    children = tree.children[rows, node]
-    exists = children >= 0
-    index = mx.maximum(children, 0)
-    child_visits = mx.where(exists, tree.visits[rows[:, None], index], 0)
-    child_value = mx.where(exists, tree.value_sum[rows[:, None], index], 0)
-    q = mx.where(child_visits > 0, child_value / mx.maximum(child_visits, 1), 0)
+    child_visits, q = _child_stats(tree, rows, tree.children[rows, node])
     sqrt_n = mx.sqrt(tree.visits[rows, node])[:, None]
     # Same operation order as the reference so float64 results match exactly.
     score = q + c_puct * tree.prior[rows, node] * sqrt_n / (1 + child_visits)
@@ -149,7 +152,12 @@ def _select(tree: _Tree, rows: mx.array, node: mx.array, c_puct: float) -> mx.ar
 
 
 def _descend(
-    tree: _Tree, rows: mx.array, sim: int, c_puct: float, root_action: mx.array | None = None
+    tree: _Tree,
+    rows: mx.array,
+    sim: int,
+    c_puct: float,
+    root_action: mx.array | None = None,
+    interior_action: Callable | None = None,
 ) -> tuple[mx.array, mx.array, mx.array]:
     """Walk down every tree until the walk leaves it or reaches a terminal node.
 
@@ -164,7 +172,11 @@ def _descend(
     # MLX has no while_loop inside graphs, so the depth loop lives in Python.
     at_root = True
     while True:
-        action = _select(tree, rows, node, c_puct)
+        action = (
+            interior_action(node)
+            if interior_action is not None and not at_root
+            else _select(tree, rows, node, c_puct)
+        )
         if at_root and root_action is not None:
             action = mx.where(root_action >= 0, root_action, action)
         at_root = False

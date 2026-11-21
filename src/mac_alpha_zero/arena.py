@@ -110,7 +110,9 @@ def puct_agent(game: BatchedGame, evaluator: Evaluator, num_simulations: int) ->
     return act
 
 
-def gumbel_agent(game: BatchedGame, evaluator: Evaluator, num_simulations: int) -> Agent:
+def gumbel_agent(
+    game: BatchedGame, evaluator: Evaluator, num_simulations: int, *, improved_nonroot: bool = False
+) -> Agent:
     """Plays the Gumbel search action without noise, i.e. deterministically."""
 
     def act(state: State) -> mx.array:
@@ -120,6 +122,7 @@ def gumbel_agent(game: BatchedGame, evaluator: Evaluator, num_simulations: int) 
             state,
             evaluator,
             num_simulations,
+            improved_nonroot=improved_nonroot,
             gumbel=mx.zeros((batch, game.num_actions)),
             use_kernels=kernels.is_available(),
         )

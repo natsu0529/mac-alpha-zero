@@ -133,7 +133,7 @@ Each milestone ends with a go/no-go check and something written up. Weeks are ta
 - Profile, then write a fused Metal kernel for tree descent + backup (one thread per tree).
 - Benchmark: simulations/sec vs mctx on CPU and vs our own pure-MLX Python-loop version.
 
-Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT below the root), fused descent/backup kernels, and the benchmark are done. The network, self-play, replay buffer, training step, and arena planned for M1 are also in place and train Connect4 end to end. The solver check is done (`benchmarks/solver_agreement.py`). Still open: the Gumbel paper's non-root selection rule.
+Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT below the root), fused descent/backup kernels, and the benchmark are done. The network, self-play, replay buffer, training step, and arena planned for M1 are also in place and train Connect4 end to end. The solver check is done (`benchmarks/solver_agreement.py`). The optional `--improved-nonroot` rule selects the legal move with the largest difference between its improved-policy probability and its current visit count divided by one plus total child visits. The default uses PUCT. Use the same switch with `benchmarks/edax_match.py` to evaluate it.
 
 **Go/no-go:** the fused kernel gives a clear, reproducible speedup over both baselines. If it doesn't, rethink the architecture before building training on top.
 
