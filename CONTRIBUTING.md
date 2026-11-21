@@ -39,3 +39,5 @@ Copy this table into [issue #10](https://github.com/natsu0529/mac-alpha-zero/iss
 | Othello | | | | |
 
 Use the final `Self-play:` line for throughput. It counts completed games over time spent generating and adding samples during this invocation. Use the `peak memory footprint` line from macOS `time -l` for the Python process. The footprint covers the whole run, including evaluation. If your macOS version omits this field, leave it blank. The `saved` line confirms the training command completed.
+
+Maintainers can follow the [v0.1 release guide](docs/v0.1-release.md) to prepare and verify the model, GitHub assets, and wheel.
