@@ -119,6 +119,17 @@ The claim we want to be able to make, with numbers: **"Train a strong game-playi
   - On 20,000 samples of the final replay buffer the network's value has the right sign 73% of the time (59% with fewer than 20 discs, 86% with 52 or more) and a squared error of 0.62 against outcomes with variance 0.96. The policy is 0.64 nats (KL) away from the search targets, whose own entropy is 0.91.
   - Suspects, not yet tested: the constant learning rate, the small network, the 200k buffer (only the last ~50 iterations), no use of the board's 8 symmetries, and targets from only 32 simulations.
   - Self-play ran at 7.8 games per second overall. Two stretches (35–56 and 72–99 training minutes) ran at about half speed for a reason we did not look into.
+- Ratings for the first 2-hour Othello run, fitted to all 18 evaluations with `uv run python benchmarks/checkpoint_elo.py checkpoints/othello.log.jsonl`. Edax level 1 is fixed at 0 Elo. A Bradley–Terry fit uses the 32-simulation search scores against random and Edax levels 1–3 (64 games per opponent, draws worth half a point), with an 800-Elo Gaussian prior on each free rating to keep undefeated players finite. These are estimates from one seed and repeated openings.
+
+  | Training minutes | 0 | 6.8 | 13.2 | 19.5 | 25.8 | 35.5 | 44.5 | 56.2 | 61.2 |
+  |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+  | Elo | -1127 | -420 | -396 | -273 | -336 | -280 | -240 | -246 | -189 |
+
+  | Training minutes | 66.1 | 72.1 | 81.6 | 90.5 | 99.2 | 104.3 | 110.1 | 116.1 | 120.0 |
+  |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+  | Elo | -246 | -210 | -228 | -266 | -189 | -189 | -174 | -210 | -194 |
+
+  The original run overwrote intermediate weights. For a new Othello run, pass `--save-eval-weights` to training, then add `--match-games 64` to the rating command to include adjacent checkpoints playing the same openings as both colors. Redirect stdout to save the ratings as JSONL.
 - MLX has no `while_loop` / `scan` inside compiled graphs. Tree descent has a data-dependent depth, so a pure-MLX descent becomes a Python loop that pays dispatch overhead per level. This is the main motivation for a fused Metal kernel.
 
 ## Milestones

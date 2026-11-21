@@ -37,6 +37,11 @@ def add_arguments(parser: argparse.ArgumentParser, **defaults) -> None:
     parser.add_argument("--learning-rate", type=float, default=2e-3)
     parser.add_argument("--buffer", type=int, default=200_000)
     parser.add_argument("--eval-every", type=int, default=10, help="iterations")
+    parser.add_argument(
+        "--save-eval-weights",
+        action="store_true",
+        help="keep weights at each evaluation for checkpoint matches",
+    )
     parser.add_argument("--eval-games", type=int, default=128)
     parser.add_argument("--rollout-simulations", type=int, default=100)
     parser.add_argument("--seed", type=int, default=0)
@@ -145,6 +150,16 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
             "eval_games": args.eval_games,
             "scores": scores,
         }
+        if args.save_eval_weights:
+            snapshot_dir = weights.parent / (weights.stem + ".snapshots")
+            snapshot_dir.mkdir(exist_ok=True)
+            snapshot = snapshot_dir / f"{counters['iteration']}.safetensors"
+            net.save_weights(str(snapshot))
+            record.update(
+                weights=str(snapshot.relative_to(log_path.parent)),
+                channels=args.channels,
+                blocks=args.blocks,
+            )
         with log_path.open("a") as log:
             log.write(json.dumps(record) + "\n")
         print(
