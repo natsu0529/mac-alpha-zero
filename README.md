@@ -50,6 +50,15 @@ Apple M5, 24 GB, MLX 0.32.4. One run and one seed each; details and caveats in [
 | Network + Gumbel search, 128 sims | 0.29 | 0.10 |
 | Network + Gumbel search, 512 sims | 0.41 | 0.07 |
 
+![Othello match scores and relative Elo at 18 evaluations across two hours of M5 training](docs/othello-strength.png)
+
+The curve uses 32 search simulations and 64 games per opponent at each evaluation. Edax level 1 is the zero point for Elo. To regenerate it from the [original scores](benchmarks/data/othello/first-2h.log.jsonl):
+
+```sh
+uv run python benchmarks/checkpoint_elo.py benchmarks/data/othello/first-2h.log.jsonl > /tmp/othello-elo.jsonl
+uv run --group media python benchmarks/plot_strength.py benchmarks/data/othello/first-2h.log.jsonl docs/othello-strength.png --ratings /tmp/othello-elo.jsonl
+```
+
 The loop learns, but two hours do not yet reach Edax level 1, and strength stops improving after about an hour with the current settings. Getting past level 1 is the next milestone.
 
 ## Why
