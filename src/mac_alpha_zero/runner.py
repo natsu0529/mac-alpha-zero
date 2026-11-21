@@ -188,6 +188,7 @@ def run(game: BatchedGame, args: argparse.Namespace, opponents: Opponents | None
             "games": counters["games"],
             "loss": counters["loss"],
             "simulations": args.simulations,
+            "improved_nonroot": args.improved_nonroot,
             "eval_games": args.eval_games,
             "learning_rate": optimizer.learning_rate.item(),
             "scores": scores,

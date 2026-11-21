@@ -102,6 +102,14 @@ def test_batched_matches_reference_in_float64(
         assert float(result.root_value[i]) == pytest.approx(expected.root_value, abs=1e-12)
 
 
+def test_nonroot_rule_changes_the_search_below_identical_root_allocations():
+    setup = ref, ref.initial_state(), ref_evaluator, 32, gumbel_noise(1, 0)[0]
+    puct = reference.run_gumbel_mcts(*setup)
+    improved = reference.run_gumbel_mcts(*setup, improved_nonroot=True)
+    np.testing.assert_array_equal(puct.visit_counts, improved.visit_counts)
+    assert improved.root_value != puct.root_value
+
+
 def test_samples_noise_when_none_is_given():
     a = gumbel_search(game, game.init(8), evaluator32, 16, key=mx.random.key(0))
     b = gumbel_search(game, game.init(8), evaluator32, 16, key=mx.random.key(0))
