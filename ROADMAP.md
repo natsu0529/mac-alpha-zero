@@ -158,7 +158,7 @@ Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT be
 - Evaluation against Edax at fixed levels.
 - Publish the curve: strength vs M5 GPU-hours.
 
-Status (2026-11-21): the bitboard environment is done and matches the reference rules and perft to depth 9 on both CPU and GPU. The ResNet, self-play, replay buffer, training loop (`runner.py`) and checkpoint saving work for Othello. Matches against Edax at fixed levels work (`benchmarks/edax_match.py`). Runs resume from their saved state and log their scores against Edax as they train. Still open: Elo tracking, and settings that get past Edax level 1 (the first 2-hour run plateaus well below it).
+Status (2026-11-21): the bitboard environment is done and matches the reference rules and perft to depth 9 on both CPU and GPU. The ResNet, self-play, replay buffer, training loop (`runner.py`) and checkpoint saving work for Othello. Matches against Edax at fixed levels work (`benchmarks/edax_match.py`). Runs resume from their saved state and log their scores against Edax as they train. Ratings are available from the evaluation log and optional checkpoint matches. Still open: settings that get past Edax level 1 (the first 2-hour run plateaus well below it).
 
 **Go/no-go:** an agent trained from zero on one Mac beats Edax at some non-trivial level, with the training run reproducible from a single command.
 
