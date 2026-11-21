@@ -92,7 +92,7 @@ The core is game-agnostic. Each game has its own rules, network config, and trai
 
 ## Contributing
 
-Issues and discussion about the API and the roadmap are welcome. Ideas for getting the Othello agent past Edax level 1 are especially welcome; the open suspects are listed in [ROADMAP.md](ROADMAP.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests, and benchmarks. Issues and discussion about the API and the roadmap are welcome. Ideas for getting the Othello agent past Edax level 1 are especially welcome; the open suspects are listed in [ROADMAP.md](ROADMAP.md).
 
 ## License
 
