@@ -93,6 +93,32 @@ The claim we want to be able to make, with numbers: **"Train a strong game-playi
   | Network + Gumbel search, 128 sims | 0.130 (12-2-86) | 0.000 (0-0-100) | 0.000 (0-0-100) |
 
   After 10 minutes the agent is far below even Edax level 1 and wins nothing at level 2. This is the starting point of the strength curve, and it shows how weak the random and rollout baselines are. The whole table takes about 4.5 minutes.
+- First long Othello run (2026-11-21, `examples/train_othello.py --minutes 120`, same defaults: 256 parallel games, 32 Gumbel simulations, 4 blocks × 64 channels, constant learning rate 2e-3, 200k-sample buffer; one seed). Scores during training over 64 games per cell, search with 32 simulations:
+
+  | Training minutes | Self-play games | Loss | Policy / search vs Edax level 1 | Policy / search vs Edax level 2 | Policy / search vs Edax level 3 |
+  |---:|---:|---:|---:|---:|---:|
+  | 0 | 0 | — | 0.00 / 0.00 | 0.00 / 0.03 | 0.00 / 0.02 |
+  | 19.5 | 10,010 | 2.228 | 0.04 / 0.19 | 0.00 / 0.02 | 0.00 / 0.00 |
+  | 44.5 | 20,231 | 2.189 | 0.16 / 0.22 | 0.03 / 0.05 | 0.00 / 0.00 |
+  | 61.2 | 26,933 | 2.224 | 0.17 / 0.23 | 0.02 / 0.05 | 0.00 / 0.05 |
+  | 90.5 | 40,491 | 2.189 | 0.19 / 0.17 | 0.02 / 0.02 | 0.00 / 0.03 |
+  | 120.0 | 56,076 | 2.203 | 0.17 / 0.29 | 0.05 / 0.01 | 0.00 / 0.02 |
+
+  The final network over 100 games per cell (`benchmarks/edax_match.py`), score and wins-draws-losses:
+
+  | Agent | Edax level 1 | Edax level 2 |
+  |---|---:|---:|
+  | Random | 0.020 (2-0-98) | 0.000 (0-0-100) |
+  | Network, policy only | 0.170 (16-2-82) | 0.005 (0-1-99) |
+  | Network + Gumbel search, 32 sims | 0.230 (23-0-77) | 0.020 (2-0-98) |
+  | Network + Gumbel search, 128 sims | 0.285 (28-1-71) | 0.100 (10-0-90) |
+  | Network + Gumbel search, 512 sims | 0.405 (39-3-58) | 0.070 (6-2-92) |
+
+  - Two hours do not reach Edax level 1. Strength and loss both stop improving after roughly 45–60 minutes (20k–27k games); the second hour buys almost nothing with these settings.
+  - More search helps at level 1 (0.23 → 0.41 from 32 to 512 simulations), so the value head carries some signal, but not enough.
+  - On 20,000 samples of the final replay buffer the network's value has the right sign 73% of the time (59% with fewer than 20 discs, 86% with 52 or more) and a squared error of 0.62 against outcomes with variance 0.96. The policy is 0.64 nats (KL) away from the search targets, whose own entropy is 0.91.
+  - Suspects, not yet tested: the constant learning rate, the small network, the 200k buffer (only the last ~50 iterations), no use of the board's 8 symmetries, and targets from only 32 simulations.
+  - Self-play ran at 7.8 games per second overall. Two stretches (35–56 and 72–99 training minutes) ran at about half speed for a reason we did not look into.
 - MLX has no `while_loop` / `scan` inside compiled graphs. Tree descent has a data-dependent depth, so a pure-MLX descent becomes a Python loop that pays dispatch overhead per level. This is the main motivation for a fused Metal kernel.
 
 ## Milestones
@@ -121,7 +147,7 @@ Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT be
 - Evaluation against Edax at fixed levels.
 - Publish the curve: strength vs M5 GPU-hours.
 
-Status (2026-11-21): the bitboard environment is done and matches the reference rules and perft to depth 9 on both CPU and GPU. The ResNet, self-play, replay buffer, training loop (`runner.py`) and checkpoint saving work for Othello. Matches against Edax at fixed levels work (`benchmarks/edax_match.py`). Still open: Elo tracking, longer runs and the strength curve, resuming from a checkpoint.
+Status (2026-11-21): the bitboard environment is done and matches the reference rules and perft to depth 9 on both CPU and GPU. The ResNet, self-play, replay buffer, training loop (`runner.py`) and checkpoint saving work for Othello. Matches against Edax at fixed levels work (`benchmarks/edax_match.py`). Runs resume from their saved state and log their scores against Edax as they train. Still open: Elo tracking, and settings that get past Edax level 1 (the first 2-hour run plateaus well below it).
 
 **Go/no-go:** an agent trained from zero on one Mac beats Edax at some non-trivial level, with the training run reproducible from a single command.
 
