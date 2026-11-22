@@ -52,25 +52,35 @@ Apple M5, 24 GB, MLX 0.32.4. One run and one seed each; details and caveats in [
 | 256 | 70,485 | 18,899 | 3.7× |
 | 1,024 | 62,789 | 13,621 | 4.6× |
 
-**Othello trained from zero for 2 hours, against Edax 4.6** (100 games per cell, score where win = 1 and draw = 0.5):
+**Othello after two hours of training from scratch.** With board-symmetry augmentation and 32 search simulations per move, the agent won 90 games, drew one and lost nine against Edax 4.6 level 1. Each cell below is the score over 100 games from 50 six-ply openings played once per color. A draw counts as half a point.
 
 | Agent | Edax level 1 | Edax level 2 |
 |---|---:|---:|
-| Random | 0.02 | 0.00 |
-| Network, policy only | 0.17 | 0.01 |
-| Network + Gumbel search, 128 sims | 0.29 | 0.10 |
-| Network + Gumbel search, 512 sims | 0.41 | 0.07 |
+| Random | 0.020 | 0.000 |
+| Network, policy only | 0.715 | 0.270 |
+| Network + Gumbel search, 32 sims | 0.905 | 0.605 |
+| Network + Gumbel search, 128 sims | 0.990 | 0.820 |
+| Network + Gumbel search, 512 sims | 1.000 | 0.960 |
 
-![Othello match scores and relative Elo at 18 evaluations across two hours of M5 training](docs/othello-strength.png)
+![Edax levels 1–3 match scores and relative Elo across two hours of M5 training with board symmetries](docs/othello-sym-strength.png)
 
-The curve uses 32 search simulations and 64 games per opponent at each evaluation. Edax level 1 is the zero point for Elo. To regenerate it from the [original scores](benchmarks/data/othello/first-2h.log.jsonl):
+The curve uses 64 games per opponent and 32 simulations per move at each evaluation. Elo is fitted to those results with Edax level 1 fixed at zero. The horizontal axis counts self-play and optimization. Including evaluation and checkpoint writes, training took 2 h 29 min. The training process peaked at **1.692 GiB** on the 24 GB M5.
+
+After building Edax as shown in the quickstart, reproduce the training run and final matches with:
 
 ```sh
-uv run python benchmarks/checkpoint_elo.py benchmarks/data/othello/first-2h.log.jsonl > /tmp/othello-elo.jsonl
-uv run --group media python benchmarks/plot_strength.py benchmarks/data/othello/first-2h.log.jsonl docs/othello-strength.png --ratings /tmp/othello-elo.jsonl
+uv run python examples/train_othello.py --minutes 120 --symmetries --seed 0 --save-eval-weights --checkpoint checkpoints/sym.safetensors
+uv run python benchmarks/edax_match.py --checkpoint checkpoints/sym.safetensors --games 100 --seed 0 --opening-plies 6 --levels 1 2 --simulations 32 128 512
 ```
 
-The loop learns, but two hours do not yet reach Edax level 1, and strength stops improving after about an hour with the current settings. Getting past level 1 is the next milestone.
+Regenerate the figure from the [evaluation log](benchmarks/data/othello/sym-2h.log.jsonl):
+
+```sh
+uv run python benchmarks/checkpoint_elo.py benchmarks/data/othello/sym-2h.log.jsonl > /tmp/othello-elo.jsonl
+uv run --group media python benchmarks/plot_strength.py benchmarks/data/othello/sym-2h.log.jsonl docs/othello-sym-strength.png --ratings /tmp/othello-elo.jsonl
+```
+
+The [full comparison](ROADMAP.md#two-hour-othello-comparison) includes the [first run without symmetry augmentation](docs/othello-strength.png) and a second symmetry-augmented run with a decaying learning rate.
 
 ## Why
 
@@ -101,7 +111,7 @@ The core is game-agnostic. Each game has its own rules, network config, and trai
 | Game | Approach | Status |
 |---|---|---|
 | Connect4 | Internal test environment, checked against a solver | Trains end to end |
-| Othello | Trained from scratch, evaluated against Edax | Trains end to end; below Edax level 1 so far |
+| Othello | Trained from scratch, evaluated against Edax | Scored 0.905 against Edax level 1 at 32 simulations per move |
 | Chess | Pretrained on public data, fine-tuned by self-play | v0.2 |
 | 9×9 Go | Trained by self-play, evaluated against GNU Go / KataGo | v0.3 |
 
@@ -114,7 +124,7 @@ Help document support for other Macs by [reporting a quickstart result](CONTRIBU
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests, and benchmarks. Issues and discussion about the API and the roadmap are welcome. Ideas for getting the Othello agent past Edax level 1 are especially welcome; the open suspects are listed in [ROADMAP.md](ROADMAP.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests, and benchmarks. Issues and discussion about the API and the roadmap are welcome.
 
 ## License
 

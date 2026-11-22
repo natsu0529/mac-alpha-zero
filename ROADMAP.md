@@ -117,7 +117,7 @@ The claim we want to be able to make, with numbers: **"Train a strong game-playi
   - Two hours do not reach Edax level 1. Strength and loss both stop improving after roughly 45–60 minutes (20k–27k games); the second hour buys almost nothing with these settings.
   - More search helps at level 1 (0.23 → 0.41 from 32 to 512 simulations), so the value head carries some signal, but not enough.
   - On 20,000 samples of the final replay buffer the network's value has the right sign 73% of the time (59% with fewer than 20 discs, 86% with 52 or more) and a squared error of 0.62 against outcomes with variance 0.96. The policy is 0.64 nats (KL) away from the search targets, whose own entropy is 0.91.
-  - Suspects, not yet tested: the constant learning rate, the small network, the 200k buffer (only the last ~50 iterations), no use of the board's 8 symmetries, and targets from only 32 simulations.
+  - Candidates identified after this first run: the constant learning rate, the small network, the 200k buffer (only the last ~50 iterations), no use of the board's 8 symmetries, and targets from only 32 simulations.
   - The run finished 7.8 games per **training second** (self-play plus optimizer updates). The two slow stretches coincide with closed-lid maintenance wakes on AC power. We aligned all 18 evaluation bursts in the kernel's Edax process log with the 18 JSONL records, using `pmset -g log` to account for time spent asleep. Local times below are JST on November 21.
 
     | Iterations | Games per training second | Mac power state during training |
@@ -141,6 +141,31 @@ The claim we want to be able to make, with numbers: **"Train a strong game-playi
 
   The original run overwrote intermediate weights. For a new Othello run, pass `--save-eval-weights` to training, then add `--match-games 64` to the rating command to include adjacent checkpoints playing the same openings as both colors. Redirect stdout to save the ratings as JSONL.
 - MLX has no `while_loop` / `scan` inside compiled graphs. Tree descent has a data-dependent depth, so a pure-MLX descent becomes a Python loop that pays dispatch overhead per level. This is the main motivation for a fused Metal kernel.
+
+## Two-hour Othello comparison
+
+On November 22, 2026, two Othello agents trained from scratch on an Apple M5 with 24 GB, macOS 26.6.2 and MLX 0.32.4 at commit `5d22b64`. Both used seed 0, the eight board symmetries, a 4-block 64-channel ResNet, a 200k replay buffer, 256 parallel games and 32 Gumbel simulations with PUCT below the root. The first used a constant learning rate of 0.002. The second started at 0.002 and halved it every 60 training minutes. The [README](README.md#results-so-far) gives the training and match commands. To reproduce the second run, change the checkpoint basename from `sym` to `decay` and add `--lr-half-life-minutes 60` to training.
+
+Each cell below gives the Edax 4.6 **level 1 / level 2** scores, with a draw worth half a point. Each score covers 100 games with opening seed 0, 50 six-ply openings and both colors. The baseline is the November 21 checkpoint.
+
+| Final agent | Baseline, no augmentation | Symmetries, constant rate | Symmetries, decaying rate |
+|---|---:|---:|---:|
+| Policy only | 0.170 / 0.005 | 0.715 / 0.270 | 0.530 / 0.305 |
+| Search, 32 simulations | 0.230 / 0.020 | 0.905 / 0.605 | 0.920 / 0.640 |
+| Search, 128 simulations | 0.285 / 0.100 | 0.990 / 0.820 | 0.980 / 0.875 |
+| Search, 512 simulations | 0.405 / 0.070 | 1.000 / 0.960 | 1.000 / 0.950 |
+
+| Training run | Self-play + updates | Wall time including evaluations and saves | Self-play games | Training process peak footprint |
+|---|---:|---:|---:|---:|
+| Baseline | 120.0 min | Interrupted by sleep | 56,076 | Unmeasured |
+| Symmetries, constant | 120.0 min | 148.6 min | 78,809 | 1,816,888,208 bytes (1.692 GiB) |
+| Symmetries, decaying | 120.1 min | 148.3 min | 77,514 | 1,814,692,800 bytes (1.690 GiB) |
+
+Peaks are macOS `/usr/bin/time -l` peak memory footprints for the timed Python process. The final match processes peaked at 0.122 and 0.123 GiB respectively. Each configuration ran once. The baseline experienced closed-lid slowdowns and generated fewer games, so the comparison cannot isolate the size of the augmentation effect. Decay helped at some search budgets and hurt at others. We retain the constant rate.
+
+The constant-rate agent scored 0.516 against level 1 at 14.1 training minutes in the 64-game checks. Its final 100-game test at 32 simulations yielded 90 wins, one draw and nine losses. The [strength curve](docs/othello-sym-strength.png) shows all 25 checks and the fitted Elo, ending at +354 relative to level 1. The archived evaluation logs cover both [constant](benchmarks/data/othello/sym-2h.log.jsonl) and [decaying](benchmarks/data/othello/decay-2h.log.jsonl) rates. SHA-256 of the constant-rate final weights: `7f9d0a671fccd67ba6ac7b29b5719a91b1d27cea216449919efcb04138f66bb6`.
+
+**Non-root selection at low search budgets.** On the original, unaugmented checkpoint, PUCT below the Gumbel root scored 0.090 at 8 simulations and 0.180 at 16 against Edax level 1. On the same paired openings, `--improved-nonroot` scored 0.090 and 0.190. Each cell comprised 100 games. At 16 simulations this amounted to one extra point for the alternative rule. PUCT remains the default.
 
 ## Equal-time Othello comparison
 
@@ -189,7 +214,7 @@ Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT be
 - Evaluation against Edax at fixed levels.
 - Publish the curve: strength vs M5 GPU-hours.
 
-Status (2026-11-21): the bitboard environment is done and matches the reference rules and perft to depth 9 on both CPU and GPU. The ResNet, self-play, replay buffer, training loop (`runner.py`) and checkpoint saving work for Othello. Matches against Edax at fixed levels work (`benchmarks/edax_match.py`). Runs resume from their saved state and log their scores against Edax as they train. Ratings are available from the evaluation log and optional checkpoint matches. Still open: settings that get past Edax level 1 (the first 2-hour run plateaus well below it).
+Status (2026-11-22): the bitboard environment is done and matches the reference rules and perft to depth 9 on both CPU and GPU. The ResNet, self-play, replay buffer, training loop (`runner.py`) and checkpoint saving work for Othello. Matches against Edax at fixed levels work (`benchmarks/edax_match.py`). Runs resume from their saved state and log their scores against Edax as they train. Ratings are available from the evaluation log and optional checkpoint matches. The [two-hour comparison](#two-hour-othello-comparison) meets the playing-strength criterion for v0.1.
 
 **Go/no-go:** an agent trained from zero on one Mac beats Edax at some non-trivial level, with the training run reproducible from a single command.
 
