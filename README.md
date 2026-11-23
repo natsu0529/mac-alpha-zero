@@ -10,6 +10,22 @@ After two hours of self-play on an M5, the agent (black) beat Edax level 1 **36â
 
 > **Status: alpha.** Self-play training runs end to end for Connect4 and Othello, and the Othello agent is measured against Edax as it trains. [v0.1.0](https://github.com/natsu0529/mac-alpha-zero/releases/tag/v0.1.0) includes the pretrained Othello weights. [Play the agent in your terminal](#play-the-pretrained-othello-agent). The API is still evolving. Milestones and every measurement so far are in [ROADMAP.md](ROADMAP.md).
 
+## Install the Python library
+
+On an Apple Silicon Mac, install [mac-alpha-zero from PyPI](https://pypi.org/project/mac-alpha-zero/) in your project's Python environment.
+
+```sh
+python -m pip install mac-alpha-zero
+```
+
+With uv, run `uv add mac-alpha-zero`. Import the package as `mac_alpha_zero`:
+
+```python
+from mac_alpha_zero import games
+
+game = games.Othello()
+```
+
 ## Quickstart
 
 On an Apple Silicon Mac with [uv](https://docs.astral.sh/uv/):
@@ -119,7 +135,6 @@ Working now:
 Planned:
 
 - Chess and 9Ã—9 Go.
-- A PyPI release.
 
 ## Games
 
