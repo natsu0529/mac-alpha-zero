@@ -188,6 +188,32 @@ uv run python benchmarks/edax_match.py --checkpoint checkpoints/control.safetens
 
 Use a fresh checkpoint path for each run. Change only `--blocks 6 --channels 96`, `--buffer 500000`, or `--simulations 64` / `128` in training. For the larger network, also pass its shape to the match command. The runner's clock excludes evaluation and checkpoint I/O. Record actual elapsed time separately. Each final match uses the same 50 six-ply openings, once per color. Compare the level-1 score at **128 evaluation simulations** across configurations, retaining the control in a tie. Report the remaining budgets and level 2 alongside that comparison, then check the leading configuration on fresh openings before changing defaults.
 
+### Results on the M5
+
+On November 23, 2026, each configuration trained once from scratch at commit `5d22b64` on the same 24 GB M5 with MLX 0.32.4. All five used symmetry augmentation. The elapsed times include the initial and final evaluations and saving the checkpoint. The peak is the macOS footprint of the Python training process.
+
+| Configuration | Training minutes | Elapsed (min:sec) | Self-play games | Peak (GiB) |
+|---|---:|---:|---:|---:|
+| Control | 60.02 | 62:26 | 38,927 | 1.693 |
+| 6 × 96 network | 60.03 | 62:54 | 13,761 | 2.692 |
+| 500k replay | 60.06 | 62:26 | 40,322 | 1.906 |
+| 64 self-play simulations | 60.06 | 63:14 | 24,572 | 1.702 |
+| 128 self-play simulations | 60.10 | 64:43 | 13,569 | 1.728 |
+
+Each cell gives **Edax level 1 / level 2** scores on opening seed 0, with 100 games per level and half a point per draw. The column headers give the evaluation search budget for all five agents.
+
+| Configuration | Policy only | 32 simulations | 128 simulations | 512 simulations |
+|---|---:|---:|---:|---:|
+| Control | 0.570 / 0.215 | 0.875 / 0.615 | 0.965 / 0.775 | 0.975 / 0.900 |
+| 6 × 96 network | 0.490 / 0.115 | 0.850 / 0.540 | 0.940 / 0.700 | 0.990 / 0.865 |
+| 500k replay | 0.480 / 0.185 | 0.880 / 0.510 | 0.970 / 0.740 | 0.995 / 0.960 |
+| 64 self-play simulations | 0.500 / 0.110 | 0.905 / 0.515 | 0.925 / 0.825 | 0.985 / 0.930 |
+| 128 self-play simulations | 0.335 / 0.025 | 0.765 / 0.470 | 0.895 / 0.660 | 0.970 / 0.850 |
+
+At 128 evaluation simulations the 500k buffer led the control by half a point over 100 games against level 1 (97–0–3 versus 96–1–3, wins–draws–losses). On a fresh set of 50 paired openings (`--seed 1 --levels 1 --simulations 128 --games 100 --search-only`), the control scored **0.940** (94–0–6) and the larger buffer **0.905** (89–3–8). The opening seed changed between tests. Both used the same saved weights for each model.
+
+We retain the Othello defaults of **4 blocks × 64 channels, 200k replay entries and 32 self-play simulations**. The larger buffer's narrow lead reversed on fresh openings and it used more memory. The larger network and deeper self-play searches also completed fewer games in the hour and scored lower on the primary comparison. This decision covers these three parameters at the one-hour budget with a single training seed.
+
 ## Milestones
 
 Each milestone ends with a go/no-go check and something written up. Weeks are targets, not promises.
