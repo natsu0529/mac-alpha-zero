@@ -4,6 +4,10 @@
 
 `mac-alpha-zero` is a game-agnostic library for batched Monte Carlo Tree Search and Gumbel AlphaZero–style training, built on [MLX](https://github.com/ml-explore/mlx) for Apple Silicon.
 
+![Animated Othello game: the trained agent plays black and beats Edax level 1, 36–28](docs/othello-edax-win.gif)
+
+After two hours of self-play on an M5, the agent (black) beat Edax level 1 **36–28** in this game. After six random opening moves, the agent used 32 search simulations per move. [Game record](benchmarks/data/othello/edax-level1-game.json) · [100-game results](#results-so-far)
+
 > **Status: alpha.** Self-play training runs end to end for Connect4 and Othello, and the Othello agent is measured against Edax as it trains. The API is not stable and there is no release yet. Milestones and every measurement so far are in [ROADMAP.md](ROADMAP.md).
 
 ## Quickstart
