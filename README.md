@@ -8,7 +8,7 @@
 
 After two hours of self-play on an M5, the agent (black) beat Edax level 1 **36–28** in this game. After six random opening moves, the agent used 32 search simulations per move. [Game record](benchmarks/data/othello/edax-level1-game.json) · [100-game results](#results-so-far)
 
-> **Status: alpha.** Self-play training runs end to end for Connect4 and Othello, and the Othello agent is measured against Edax as it trains. The API is not stable and there is no release yet. Milestones and every measurement so far are in [ROADMAP.md](ROADMAP.md).
+> **Status: alpha.** Self-play training runs end to end for Connect4 and Othello, and the Othello agent is measured against Edax as it trains. [v0.1.0](https://github.com/natsu0529/mac-alpha-zero/releases/tag/v0.1.0) includes the pretrained Othello weights. [Play the agent in your terminal](#play-the-pretrained-othello-agent). The API is still evolving. Milestones and every measurement so far are in [ROADMAP.md](ROADMAP.md).
 
 ## Quickstart
 
@@ -32,16 +32,29 @@ uv run python examples/train_othello.py --minutes 60 --resume   # continue the s
 
 Weights, the replay buffer and a score log go to `checkpoints/`.
 
-### Play a saved Othello agent
+<a id="play-a-saved-othello-agent"></a>
 
-Use the weights produced by the Othello quickstart to play in the terminal. You play black (`X`) by default. Enter a listed square such as `d3`, or pass `--color white` to play second. Edax is only needed for the benchmark.
+### Play the pretrained Othello agent
+
+To play the agent from the GIF on an Apple Silicon Mac, run these commands from the cloned repository. The download is 1.25 MB. You can start playing immediately with just the weights and [uv](https://docs.astral.sh/uv/).
 
 ```sh
-uv run python examples/play_othello.py checkpoints/othello.safetensors
-uv run python benchmarks/edax_match.py --checkpoint checkpoints/othello.safetensors --search-only --levels 1 --games 100 --simulations 32
+mkdir -p checkpoints/v0.1.0
+curl -fL https://github.com/natsu0529/mac-alpha-zero/releases/download/v0.1.0/othello.safetensors -o checkpoints/v0.1.0/othello.safetensors &&
+  echo '7f9d0a671fccd67ba6ac7b29b5719a91b1d27cea216449919efcb04138f66bb6  checkpoints/v0.1.0/othello.safetensors' | shasum -a 256 -c - &&
+  uv run python examples/play_othello.py checkpoints/v0.1.0/othello.safetensors
 ```
 
-Both commands accept `--channels` and `--blocks` for checkpoints trained with a custom network shape. For a score comparison, use the same search budget, opening seed, and non-root rule as the original match.
+You play black (`X`). Enter a listed square such as `d3`, or `q` to quit. Pass `--color white` to let the agent open. To play your own trained agent, substitute the checkpoint path from the quickstart. Both the play and benchmark commands accept `--channels` and `--blocks` for custom network shapes.
+
+To reproduce the published match against Edax 4.6 level 1, build Edax and run:
+
+```sh
+scripts/build_edax.sh
+uv run python benchmarks/edax_match.py --checkpoint checkpoints/v0.1.0/othello.safetensors --search-only --levels 1 --games 100 --seed 0 --opening-plies 6 --simulations 32
+```
+
+With 50 openings played once per color, the agent scored **0.905** (90 wins, one draw, nine losses). It uses a 4-block, 64-channel network and PUCT below the Gumbel root.
 
 ## Results so far
 
