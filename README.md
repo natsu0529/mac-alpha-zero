@@ -120,7 +120,14 @@ The core is game-agnostic. Each game has its own rules, network config, and trai
 - Apple Silicon Mac (developed on an M5 with 24 GB)
 - macOS with Python 3.10+ and MLX 0.32.4+ (`uv` installs both)
 
-Help document support for other Macs by [reporting a quickstart result](CONTRIBUTING.md#report-an-apple-silicon-quickstart).
+Both 10-minute quickstarts completed and saved weights on the **M5 with 24 GB** (macOS 26.6.2, MLX 0.32.4, Metal kernels enabled, Edax installed). Elapsed time includes evaluation and saving. Self-play throughput counts time generating samples. Peak memory is the Python process footprint reported by macOS over the full command.
+
+| Quickstart | Elapsed (min:sec) | Self-play games/s | Peak memory footprint |
+|---|---:|---:|---:|
+| Connect4 | 37:28 | 59.51 | 1,379,435,552 bytes (1.285 GiB) |
+| Othello | 14:55 | 17.52 | 1,813,103,552 bytes (1.689 GiB) |
+
+The minimum supported memory is still unverified. Help document support for other Macs by [reporting a quickstart result](CONTRIBUTING.md#report-an-apple-silicon-quickstart).
 
 ## Contributing
 
