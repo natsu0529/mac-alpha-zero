@@ -257,7 +257,7 @@ def main():
         results = [run_quickstart(game, args.minutes, report_dir) for game in args.quickstart]
         sections += [
             "",
-            f"### Quickstarts ({args.minutes:g} minutes each, for issue #10)",
+            f"### Quickstarts ({args.minutes:g}-minute training budget, for issue #10)",
             "",
             quickstart_table(results),
         ]
