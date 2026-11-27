@@ -27,6 +27,7 @@ CI (GitHub Actions, macos-latest) runs lint, format check, and tests. Hosted run
 - `src/mac_alpha_zero/reference/` — slow, single-game NumPy implementations: the correctness oracle. Clarity over speed. Do not optimize these.
   - `game.py` — the `Game` protocol. Values are always for the player to move.
   - `connect4.py`, `othello.py` (explicit pass action 64, so players always alternate), `mcts.py` (PUCT), `solver.py` (depth-limited negamax).
+  - `chess.py` — rules with automatic draws (threefold, 50-move, insufficient material), FEN/UCI helpers and `perft`. Actions use AlphaZero's 8×8×73 = 4,672 encoding, seen from the player to move (Black's ranks mirrored). Checked against published perft counts.
 - `src/mac_alpha_zero/games/` — batched MLX environments (`BatchedGame` protocol in `base.py`). States are dicts of arrays with a leading batch dimension. `othello.py` uses uint64 bitboards (`own` / `opp` of the player to move) and is checked against the reference and perft to depth 9.
 - `src/mac_alpha_zero/mcts.py` — batched PUCT search. With `dtype=mx.float64` on the CPU it matches `reference.run_mcts` bit for bit; keep it that way (same operation order, first-index argmax tie-break).
 - `src/mac_alpha_zero/kernels.py` — fused Metal kernels (tree descent, backup), one GPU thread per tree. `search(..., use_kernels=True)` must give the same visit counts as the pure-MLX path; tests skip when Metal is unavailable.
