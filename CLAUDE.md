@@ -16,6 +16,7 @@ uv run python benchmarks/solver_agreement.py --checkpoint checkpoints/connect4.s
 uv run python examples/train_connect4.py --minutes 10                 # train Connect4 end to end
 uv run python examples/train_othello.py --minutes 10                  # train Othello end to end
 uv run python examples/train_othello.py --minutes 60 --resume         # continue that run
+uv run python benchmarks/mac_report.py                                # quickstarts + speed report for issues #10 / #31
 scripts/build_edax.sh                                                 # build Edax into third_party/ (once)
 uv run python benchmarks/edax_match.py --checkpoint checkpoints/othello.safetensors # score vs Edax levels
 ```
