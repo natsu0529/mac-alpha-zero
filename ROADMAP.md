@@ -306,7 +306,7 @@ Status (2026-11-22): the bitboard environment is done and matches the reference 
 
 **Go/no-go:** an agent trained from zero on one Mac beats Edax at some non-trivial level, with the training run reproducible from a single command.
 
-**GitHub release.** [v0.1.0](https://github.com/natsu0529/mac-alpha-zero/releases/tag/v0.1.0) distributes the code and the constant-rate Othello weights used in the README game. [Download, play and reproduce the 100-game Edax match](README.md#play-the-pretrained-othello-agent). Launch write-ups and posts are tracked in [#12](https://github.com/natsu0529/mac-alpha-zero/issues/12).
+**GitHub release.** [v0.1.0](https://github.com/natsu0529/mac-alpha-zero/releases/tag/v0.1.0) distributes the code and the constant-rate Othello weights used in the README game. [Download, play and reproduce the 100-game Edax match](README.md#play-the-pretrained-othello-agent). The release itself was tracked in [#12](https://github.com/natsu0529/mac-alpha-zero/issues/12). Launch write-ups and posts are tracked in [#30](https://github.com/natsu0529/mac-alpha-zero/issues/30).
 
 ### M2 — Chess (v0.2)
 
