@@ -74,16 +74,21 @@ With 50 openings played once per color, the agent scored **0.905** (90 wins, one
 
 ## Results so far
 
-Apple M5, 24 GB, MLX 0.32.4. One run and one seed each; details and caveats in [ROADMAP.md](ROADMAP.md).
+Apple M5, 24 GB, MLX 0.32.4. One run per configuration; details and caveats in [ROADMAP.md](ROADMAP.md).
 
-**Search speed with a network** (Connect4, 64-channel 4-block ResNet at every leaf, 64 simulations), simulations per second:
+**Search speed with a network** (Connect4, random 64-channel 4-block ResNet at every leaf, 64 simulations, measured 2026-11-27), simulations per second:
 
-| Batch | mac-alpha-zero (MLX + Metal kernels) | [mctx](https://github.com/google-deepmind/mctx) (JAX, CPU) | Speedup |
-|---:|---:|---:|---:|
-| 1 | 1,167 | 6,353 | 0.18× |
-| 64 | 51,781 | 17,999 | 2.9× |
-| 256 | 70,485 | 18,899 | 3.7× |
-| 1,024 | 62,789 | 13,621 | 4.6× |
+| Batch | mac-alpha-zero, Metal kernels (GPU) | mac-alpha-zero, pure MLX (GPU) | [mctx](https://github.com/google-deepmind/mctx), JAX 0.12.1 (CPU) | mctx, jax-metal 0.1.1 (GPU) |
+|---:|---:|---:|---:|---:|
+| 1 | 1,532 | 602 | 8,258 | 838 |
+| 64 | 54,096 | 29,187 | 23,749 | 14,870 |
+| 256 | 74,855 | 57,436 | 26,367 | 17,435 |
+| 1,024 | 79,804 | 73,366 | 25,018 | 18,273 |
+| 4,096 | 61,374 | 59,699 | 24,487 | Did not finish |
+
+- **GPU against CPU:** from batch 64 up, the Metal kernels are 2.3–3.2× faster than mctx on the CPU. At batch 1 they are 5.4× slower.
+- **GPU against GPU:** at batches 64–1,024 they are 3.6–4.4× faster than mctx on the Mac GPU. Experimental jax-metal requires JAX 0.4.34 and mctx 0.0.5, and it stopped responding at batch 4,096.
+- **Kernels against pure MLX:** on the same GPU, with the same visit counts, the fused kernels are 1.85× faster at batch 64 and 1.03× faster at 4,096. At large batches, network inference takes almost all of the time.
 
 **Othello after two hours of training from scratch.** With board-symmetry augmentation and 32 search simulations per move, the agent won 90 games, drew one and lost nine against Edax 4.6 level 1. Each cell below is the score over 100 games from 50 six-ply openings played once per color. A draw counts as half a point.
 
@@ -113,7 +118,7 @@ uv run python benchmarks/checkpoint_elo.py benchmarks/data/othello/sym-2h.log.js
 uv run --group media python benchmarks/plot_strength.py benchmarks/data/othello/sym-2h.log.jsonl docs/othello-sym-strength.png --ratings /tmp/othello-elo.jsonl
 ```
 
-The [full comparison](ROADMAP.md#two-hour-othello-comparison) includes the [first run without symmetry augmentation](docs/othello-strength.png) and a second symmetry-augmented run with a decaying learning rate.
+The [full comparison](ROADMAP.md#two-hour-othello-comparison) includes the [first run without symmetry augmentation](docs/othello-strength.png) and a second symmetry-augmented run with a decaying learning rate. It also includes a rerun without augmentation on an awake Mac and a second seed with symmetries. The second seed scored 0.910 against level 1 and 0.765 against level 2 at 32 simulations.
 
 ## Why
 

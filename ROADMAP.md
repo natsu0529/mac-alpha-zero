@@ -60,7 +60,43 @@ The claim we want to be able to make, with numbers: **"Train a strong game-playi
   - With a network we beat mctx on the CPU from batch 64 up, by 3–5×. Only batch 1 is slower.
   - Network inference is now nearly the whole cost: the network alone runs about 31k–49k positions/s on the M5 GPU, peaking near batch 1,024 and dropping at 4,096. Search throughput peaks around batch 256.
   - So the next speedups have to come from inference (smaller or compiled network, half precision, batch size), not from more tree kernels.
-  - Not measured: JAX on the Mac GPU (jax-metal), and a trained rather than random network.
+  - Not measured here: JAX on the Mac GPU (jax-metal). It is covered in the 2026-11-27 comparison below. A trained rather than random network is still unmeasured.
+- Search speed against mctx on the Mac GPU ([#31](https://github.com/natsu0529/mac-alpha-zero/issues/31), 2026-11-27). This used the same benchmark and random 64x4 network with 64 simulations, best of 5, at commit `65d84b5`. The Mac was on AC power with other apps closed, and `pmset -g therm` reported no thermal warning before any measurement.
+  - **Versions.** jax-metal 0.1.1, the latest release, requires JAX 0.4.34. mctx on Metal therefore ran in a separate Python 3.12 environment with jax and jaxlib 0.4.34, jax-metal 0.1.1, mctx 0.0.5, chex 0.1.89 and pgx 2.6.0. mctx on the CPU ran in that environment and in the project environment (JAX 0.12.1, mctx 0.0.71). The CPU runs set `JAX_PLATFORMS=cpu`, and the Metal runs printed `Metal device set to: Apple M5`.
+
+  Simulations per second, with the network:
+
+  | Batch | Pure MLX (GPU) | MLX + Metal kernels (GPU) | mctx, JAX 0.12.1 (CPU) | mctx, JAX 0.4.34 (CPU) | mctx, JAX 0.4.34 (Metal) |
+  |---:|---:|---:|---:|---:|---:|
+  | 1 | 602 | 1,532 | 8,258 | 3,419 | 838 |
+  | 64 | 29,187 | 54,096 | 23,749 | 14,242 | 14,870 |
+  | 256 | 57,436 | 74,855 | 26,367 | 16,465 | 17,435 |
+  | 1,024 | 73,366 | 79,804 | 25,018 | 15,230 | 18,273 |
+  | 4,096 | 59,699 | 61,374 | 24,487 | 14,342 | Did not finish in 900 s |
+
+  The same run without a network (search only):
+
+  | Batch | Pure MLX (GPU) | MLX + Metal kernels (GPU) | mctx, JAX 0.12.1 (CPU) | mctx, JAX 0.4.34 (CPU) | mctx, JAX 0.4.34 (Metal) |
+  |---:|---:|---:|---:|---:|---:|
+  | 1 | 760 | 3,012 | 699,453 | 82,051 | 964 |
+  | 64 | 48,752 | 197,733 | 962,887 | 409,080 | 18,172 |
+  | 256 | 188,885 | 727,656 | 934,469 | 495,686 | 21,535 |
+  | 1,024 | 692,857 | 2,355,969 | 1,149,006 | 489,894 | 22,367 |
+  | 4,096 | 1,973,838 | 4,355,929 | 1,054,587 | 563,346 | Did not finish in 900 s |
+
+  - **GPU against GPU.** With the network, the Metal kernels were 3.6–4.4× faster than mctx on Metal at batches 64–1,024. At JAX 0.4.34, moving mctx from the CPU to Metal gained only 1.0–1.2× at those batches and was 4× slower at batch 1. With jax-metal 0.1.1, the lead over mctx therefore does not come mainly from the GPU.
+  - **GPU against CPU.** Against mctx 0.0.71 on the CPU, the kernels were 2.3–3.2× faster from batch 64 up and 5.4× slower at batch 1. This is below the 3–5× measured on November 20.
+  - **Kernels against pure MLX** (same GPU, same visit counts): 2.5× at batch 1, 1.85× at 64, 1.30× at 256, 1.09× at 1,024 and 1.03× at 4,096. At large batches, network inference takes almost all of the time.
+  - **jax-metal at batch 4,096.** Both mctx runs on Metal printed nothing more after batch 1,024. They were stopped after 900 s, with and without the network. The night before, the same run had hung for hours inside `BlockUntilReady`. No error was printed.
+  - **Correctness on Metal is unverified.** We compared mctx action weights between the CPU and Metal devices at JAX 0.4.34. Without a network they matched at batches 64 and 1,024 but not at batch 1. With the network they differed by about as much as the CPU results of JAX 0.4.34 and 0.12.1 differ from each other, so the check is inconclusive.
+  - **Change since November 20.** Pure MLX and mctx on the CPU ran faster than on November 20 with the same MLX, JAX and mctx versions: 57,436 against 28,307, and 26,367 against 18,899, at batch 256. That run used best of 3 without recording other load on the Mac, and the search code changed on November 22. We have not isolated the cause.
+  - Not measured: earlier M-series chips, the second part of #31.
+
+  Each cell comes from a command like the one below. Replace `--backend mctx` with `metal` or `mlx` for the MLX columns, and drop `--network 64x4` for search only. Run mctx on Metal with the separate environment's Python and without `JAX_PLATFORMS`.
+
+  ```sh
+  JAX_PLATFORMS=cpu uv run --group bench python benchmarks/search_speed.py --backend mctx --network 64x4 --batch 1 64 256 1024 4096 --sims 64 --repeats 5
+  ```
 - Agreement with the exact solver (2026-11-20, `benchmarks/solver_agreement.py`, 1,000 solved positions from random play with 14–30 stones; "quiet" = the 398 positions without an immediate win). Share of moves that keep the best achievable result:
 
   | Agent | All positions | Quiet only |
@@ -161,9 +197,35 @@ Each cell below gives the Edax 4.6 **level 1 / level 2** scores, with a draw wor
 | Symmetries, constant | 120.0 min | 148.6 min | 78,809 | 1,816,888,208 bytes (1.692 GiB) |
 | Symmetries, decaying | 120.1 min | 148.3 min | 77,514 | 1,814,692,800 bytes (1.690 GiB) |
 
-Peaks are macOS `/usr/bin/time -l` peak memory footprints for the timed Python process. The final match processes peaked at 0.122 and 0.123 GiB respectively. Each configuration ran once. The baseline experienced closed-lid slowdowns and generated fewer games, so the comparison cannot isolate the size of the augmentation effect. Decay helped at some search budgets and hurt at others. We retain the constant rate.
+Peaks are macOS `/usr/bin/time -l` peak memory footprints for the timed Python process. The final match processes peaked at 0.122 and 0.123 GiB respectively. Each configuration ran once. The baseline experienced closed-lid slowdowns and generated fewer games, so the comparison cannot isolate the size of the augmentation effect. The [awake rerun below](#awake-baseline-and-a-second-seed) addresses this. Decay helped at some search budgets and hurt at others. We retain the constant rate.
 
 The constant-rate agent scored 0.516 against level 1 at 14.1 training minutes in the 64-game checks. Its final 100-game test at 32 simulations yielded 90 wins, one draw and nine losses. The [strength curve](docs/othello-sym-strength.png) shows all 25 checks and the fitted Elo, ending at +354 relative to level 1. The archived evaluation logs cover both [constant](benchmarks/data/othello/sym-2h.log.jsonl) and [decaying](benchmarks/data/othello/decay-2h.log.jsonl) rates. SHA-256 of the constant-rate final weights: `7f9d0a671fccd67ba6ac7b29b5719a91b1d27cea216449919efcb04138f66bb6`.
+
+### Awake baseline and a second seed
+
+On November 26–27, 2026, two more two-hour runs trained at commit `65d84b5` on the same M5. Both ran on AC power with the lid open, under `caffeinate -is`, with other apps closed. The first repeated the November 21 baseline: seed 0 without augmentation. The second used the eight symmetries with seed 1. Training and match settings were otherwise the same as above, and both passed `--save-eval-weights`.
+
+The run without augmentation was interrupted at 71.4 training minutes (iteration 687). It continued with `--resume` the next night for the remaining 48.6 minutes. Resuming restores the weights, optimizer, replay buffer and counters, but not the games in progress or the random state, so this run is not identical to an uninterrupted one.
+
+Each cell gives the Edax 4.6 **level 1 / level 2** scores with the same 100 games per level as above:
+
+| Final agent | No augmentation, seed 0, Nov 21 (sleep) | No augmentation, seed 0, Nov 27 (awake) | Symmetries, seed 0, Nov 22 | Symmetries, seed 1, Nov 27 |
+|---|---:|---:|---:|---:|
+| Policy only | 0.170 / 0.005 | 0.195 / 0.010 | 0.715 / 0.270 | 0.640 / 0.360 |
+| Search, 32 simulations | 0.230 / 0.020 | 0.290 / 0.065 | 0.905 / 0.605 | 0.910 / 0.765 |
+| Search, 128 simulations | 0.285 / 0.100 | 0.435 / 0.070 | 0.990 / 0.820 | 0.990 / 0.880 |
+| Search, 512 simulations | 0.405 / 0.070 | 0.520 / 0.115 | 1.000 / 0.960 | 1.000 / 0.950 |
+
+| Training run | Self-play + updates | Wall time including evaluations and saves | Self-play games | Training process peak footprint |
+|---|---:|---:|---:|---:|
+| No augmentation, seed 0, awake | 120.1 min | 151.6 min (88.7 + 62.9) | 74,273 | 1,820,083,160 bytes (1.695 GiB) before the interruption, 2,130,347,112 bytes (1.984 GiB) after resuming |
+| Symmetries, seed 1 | 120.0 min | 149.8 min | 78,312 | 1,816,150,904 bytes (1.691 GiB) |
+
+- **The augmentation effect does not come from sleep.** Awake, the unaugmented run completed 74,273 games instead of 56,076 and scored a little higher than on November 21. It still reached only 0.290 against level 1 at 32 simulations, against 0.905 and 0.910 with symmetries. After 20 training minutes, its 64-game checks at 32 simulations stayed between 0.13 and 0.32 against level 1. The plateau seen on November 21 was therefore not caused by sleep.
+- **A second seed gave the same result at level 1.** The seed-1 agent scored 0.910, 0.990 and 1.000 against level 1 at 32, 128 and 512 simulations, within one point of seed 0. At level 2 it scored higher at 32 and 128 simulations (0.765 against 0.605, 0.880 against 0.820). Its policy alone was weaker against level 1 (0.640 against 0.715). With two seeds, level-2 scores varied by up to 0.16 between runs.
+- **Memory after resuming.** We did not investigate the 0.29 GiB higher peak after resuming. Loading the saved 200k-entry replay buffer is a likely cause. Each final match process peaked at 0.125 GiB.
+
+The evaluation logs are archived for the [awake run without augmentation](benchmarks/data/othello/nosym-awake-2h.log.jsonl) and the [seed-1 run](benchmarks/data/othello/sym-seed1-2h.log.jsonl).
 
 **Non-root selection at low search budgets.** On the original, unaugmented checkpoint, PUCT below the Gumbel root scored 0.090 at 8 simulations and 0.180 at 16 against Edax level 1. On the same paired openings, `--improved-nonroot` scored 0.090 and 0.190. Each cell comprised 100 games. At 16 simulations this amounted to one extra point for the alternative rule. PUCT remains the default.
 
@@ -230,7 +292,7 @@ Status (2026-11-19): search core, Connect4, PUCT, Gumbel root selection (PUCT be
 
 **Go/no-go:** the fused kernel gives a clear, reproducible speedup over both baselines. If it doesn't, rethink the architecture before building training on top.
 
-**Result so far:** mixed. Clear win over pure MLX (2–4×) and over mctx on the CPU from batch 1,024 up, but far behind mctx at small batches. With a network (the case that matters for training) we are 3–5× faster than mctx on the CPU from batch 64 up, so the decision is **go**. Tree search without a network at small batches remains much slower than mctx.
+**Result so far:** mixed. Clear win over pure MLX (2–4×) and over mctx on the CPU from batch 1,024 up, but far behind mctx at small batches. With a network (the case that matters for training) we were 3–5× faster than mctx on the CPU from batch 64 up, so the decision is **go**. Re-measured on 2026-11-27 on an idle Mac, the lead was 2.3–3.2× over mctx on the CPU and 3.6–4.4× over mctx on the Mac GPU through jax-metal. Tree search without a network at small batches remains much slower than mctx.
 
 ### M1 — Othello from scratch (weeks 3–6) → v0.1 release
 
