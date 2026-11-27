@@ -318,6 +318,8 @@ Status (2026-11-22): the bitboard environment is done and matches the reference 
 
 **Headline metric:** Elo gained per M5 GPU-hour, not absolute Elo.
 
+Status (2026-11-27): the single-game reference rules are in `reference/chess.py`. They cover castling, en passant and underpromotion, and end the game by checkmate, stalemate, threefold repetition, the 50-move rule and insufficient material, applying claimable draws automatically. Actions use AlphaZero's 8×8×73 = 4,672 move types, seen from the player to move. Move generation matches the published perft counts for the starting position and positions 2–6 of the Chessprogramming wiki; the tests run depths up to 3 or 4 in a few seconds, and a one-off check matched Kiwipete to depth 4 (4,085,603). Next: profile the reference to choose between CPU and GPU move generation, then build the batched environment against it.
+
 ### M3 — 9×9 Go (v0.3)
 
 - Batched Go rules: captures, ko / superko, scoring. [Pgx](https://github.com/sotetsuk/pgx) is the reference for vectorizing these rules.
